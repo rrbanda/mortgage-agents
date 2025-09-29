@@ -57,6 +57,39 @@ This v1 system provides:
 
 **Ready for production deployment and compelling demos!**
 
+## 💻 Getting Started
+
+### Prerequisites
+- Python 3.11 or higher
+- Virtual environment activated
+
+### Setup & Run
+```bash
+# Navigate to project root
+cd /path/to/mortgage-agents
+
+# If first time setup, create virtual environment
+python3.11 -m venv venv
+pip install -r requirements.txt
+
+# Activate virtual environment
+source venv/bin/activate
+
+# Start the development server
+cd app
+langgraph dev
+```
+
+**Important:** Always ensure your virtual environment is activated before running `langgraph dev`. You should see `(venv)` in your terminal prompt.
+
+The development server will start on `http://localhost:8123` by default and automatically open in your browser.
+
+### Troubleshooting
+If you encounter "Required package 'langgraph-api' is not installed" error:
+1. Ensure you're using Python 3.11+ (`python --version`)
+2. Verify virtual environment is activated (look for `(venv)` in prompt)
+3. Reinstall requirements: `pip install -r requirements.txt`
+
 
 
 I'll help you understand this mortgage system codebase and create demo prompts for your UI. Let me first explore the code to understand the system's capabilities, then I'll provide you with comprehensive demo prompts.
