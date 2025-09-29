@@ -184,8 +184,9 @@ class AppConfig(BaseModel):
         cfg.app.session_name = os.getenv("SESSION_NAME", cfg.app.session_name)
         cfg.app.debug = os.getenv("DEBUG", "false").lower() == "true"
 
-        cfg.llm.base_url = os.getenv("LLAMA_BASE_URL", cfg.llm.base_url).rstrip("/")
-        cfg.llm.default_model = os.getenv("MODEL_ID", cfg.llm.default_model)
+        cfg.llm.base_url = os.getenv("LLM_BASE_URL", cfg.llm.base_url).rstrip("/")
+        cfg.llm.api_key = os.getenv("LLM_API_KEY", cfg.llm.api_key)
+        cfg.llm.default_model = os.getenv("LLM_DEFAULT_MODEL", cfg.llm.default_model)
 
         cfg.database.host = os.getenv("DB_HOST", cfg.database.host)
         cfg.database.port = int(os.getenv("DB_PORT", str(cfg.database.port)))

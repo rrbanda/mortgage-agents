@@ -3,11 +3,11 @@ app:
   session_name: "mortgage_processing_session"
   debug: true
 
-# LLM endpoint configuration with proper tool calling support
+# LLM endpoint configuration - LlamaStack integration
 llm:
-  base_url: "https://api.openai.com/v1"
-  api_key: "${OPENAI_API_KEY}"  # Set your OpenAI API key
-  default_model: "gpt-4o-mini"
+  base_url: "https://lss-lss.apps.prod.rhoai.rh-aiservices-bu.com/v1/openai/v1"
+  api_key: "not-needed"  # LlamaStack doesn't require API key
+  default_model: "llama-4-scout-17b-16e-w4a16"
 
 # LangGraph configuration (uses same model as LLM)
 langgraph:
