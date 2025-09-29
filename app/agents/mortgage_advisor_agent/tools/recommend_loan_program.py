@@ -38,26 +38,27 @@ def recommend_loan_program(borrower_info: str) -> str:
     """
     
     try:
-        # Parse borrower info string 
+        # Use standardized parser for robust borrower information parsing
+        from agents.shared.input_parser import parse_mortgage_application
         import re
-        info = borrower_info.lower()
         
-        # Extract credit score
-        credit_match = re.search(r'credit[:\s]*(\d+)', info)
-        credit_score_int = int(credit_match.group(1)) if credit_match else 720
+        # Parse using standardized parser
+        parsed_data = parse_mortgage_application(borrower_info)
         
-        # Extract annual income
-        income_match = re.search(r'income[:\s]*(\d+)', info)
-        annual_income_int = int(income_match.group(1)) if income_match else 95000
-        
-        # Extract down payment
-        down_match = re.search(r'(?:down.*payment|down)[:\s]*(\d+)', info)
-        down_payment_amount = int(down_match.group(1)) if down_match else 60000
+        # Extract borrower details with fallbacks
+        credit_score_int = parsed_data.get("credit_score") or 720
+        down_payment_amount = int(parsed_data.get("down_payment") or 60000)
         down_payment_float = 0.15  # Default 15%
+        monthly_debts_int = int(parsed_data.get("monthly_debts") or 850)
         
-        # Extract monthly debts
-        debt_match = re.search(r'(?:monthly\s*debts|debts)[:\s]*(\d+)', info)
-        monthly_debts_int = int(debt_match.group(1)) if debt_match else 850
+        # Handle income (convert monthly to annual if needed)
+        info = borrower_info.lower()  # Make sure info is available for other parsing
+        if parsed_data.get("monthly_income"):
+            annual_income_int = int(parsed_data["monthly_income"] * 12)
+        else:
+            # Fallback to direct annual income parsing
+            income_match = re.search(r'income[:\s]*(\d+)', info)
+            annual_income_int = int(income_match.group(1)) if income_match else 95000
         
         # Extract property type
         property_type = "primary_residence"

@@ -60,20 +60,28 @@ def make_underwriting_decision(analysis_summary: str) -> str:
     """
     
     try:
-        # Parse analysis summary string
+        # Use standardized parser for robust underwriting data parsing
+        from agents.shared.input_parser import parse_mortgage_application
         import re
+        
+        # Parse using standardized parser first
+        parsed_data = parse_mortgage_application(analysis_summary)
         summary = analysis_summary.lower()
         
-        # Extract credit score and risk
+        # Extract credit score and risk (use parser first, regex fallback)
+        credit_score = parsed_data.get("credit_score") or 720
         credit_match = re.search(r'credit[:\s]*(\d+)', summary)
-        credit_score = int(credit_match.group(1)) if credit_match else 720
+        if credit_match and not parsed_data.get("credit_score"):
+            credit_score = int(credit_match.group(1))
         
         risk_match = re.search(r'(low|medium|high)\s*risk', summary)
         credit_risk_level = risk_match.group(1).upper() if risk_match else "LOW"
         
-        # Extract income
+        # Extract income (use parser first, regex fallback)
+        monthly_gross_income = parsed_data.get("monthly_income") or 7917.0
         income_match = re.search(r'income[:\s]*(\d+)', summary)
-        monthly_gross_income = float(income_match.group(1)) if income_match else 7917.0
+        if income_match and not parsed_data.get("monthly_income"):
+            monthly_gross_income = float(income_match.group(1))
         
         # Extract income stability
         stability_match = re.search(r'(excellent|good|fair|poor)\s*stability', summary)

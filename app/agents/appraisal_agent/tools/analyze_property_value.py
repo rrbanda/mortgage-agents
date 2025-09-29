@@ -33,39 +33,21 @@ def analyze_property_value(property_info: str) -> str:
     """
     
     try:
-        # Parse property info string
-        import re
-        info = property_info.lower()
+        # Use standardized parser for robust property parsing
+        from agents.shared.input_parser import parse_mortgage_application
         
-        # Extract property address
-        address_match = re.search(r'address:\s*([^,]+(?:,\s*[^,]+)*)', info)
-        property_address = address_match.group(1).strip() if address_match else "456 Oak Ave, Austin, TX"
+        # Parse using standardized parser
+        parsed_data = parse_mortgage_application(property_info)
         
-        # Extract property type
-        type_match = re.search(r'type:\s*([a-z_]+)', info)
-        property_type = type_match.group(1) if type_match else "single_family_detached"
-        
-        # Extract loan amount
-        loan_match = re.search(r'loan:\s*(\d+)', info)
-        loan_amount = float(loan_match.group(1)) if loan_match else 390000.0
-        
-        # Extract property value
-        value_match = re.search(r'value:\s*(\d+)', info)
-        property_value = float(value_match.group(1)) if value_match else 450000.0
-        
-        # Extract square footage
-        sqft_match = re.search(r'sqft:\s*(\d+)', info)
-        gross_living_area = int(sqft_match.group(1)) if sqft_match else 2200
-        
-        # Extract year built
-        built_match = re.search(r'built:\s*(\d{4})', info)
-        year_built = int(built_match.group(1)) if built_match else 2015
-        
-        # Set defaults (for reference, not actively used)
-        # lot_size = 0.25
-        # bedrooms = 3  
-        # bathrooms = 2.5
-        # appraisal_purpose = "purchase"
+        # Extract property details with fallbacks
+        property_address = parsed_data.get("address") or "456 Oak Ave, Austin, TX"
+        property_type = parsed_data.get("property_type") or "single_family_detached"
+        loan_amount = parsed_data.get("loan_amount") or 390000.0
+        property_value = parsed_data.get("property_value") or 450000.0
+        gross_living_area = parsed_data.get("square_feet") or 2200
+        year_built = parsed_data.get("year_built") or 2015
+        bedrooms = parsed_data.get("bedrooms")  # Can be None
+        bathrooms = parsed_data.get("bathrooms")  # Can be None
         
         # Initialize Neo4j connection
         initialize_connection()

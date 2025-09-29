@@ -46,6 +46,10 @@ def parse_neo4j_rule(rule_dict: Dict[str, Any]) -> Dict[str, Any]:
 def parse_application_info(application_info: str) -> Dict[str, Any]:
     """Extract complete application information from natural language description."""
     import re
+    from agents.shared.input_parser import parse_mortgage_application, validate_parsed_data
+    
+    # Use standardized parser for robust parsing
+    standardized_data = parse_mortgage_application(application_info)
     
     # Initialize with safe defaults
     parsed = {
@@ -97,126 +101,84 @@ def parse_application_info(application_info: str) -> Dict[str, Any]:
     
     info_lower = application_info.lower()
     
-    # Extract name components
-    name_match = re.search(r"(?:name|i'm|i am)\s+(?:is\s+)?([a-zA-Z]+(?:\s+[a-zA-Z]+)*)", application_info, re.IGNORECASE)
-    if name_match:
-        full_name = name_match.group(1).strip()
-        name_parts = full_name.split()
-        if len(name_parts) >= 2:
-            parsed["first_name"] = name_parts[0]
-            parsed["last_name"] = name_parts[-1]
-            if len(name_parts) > 2:
-                parsed["middle_name"] = " ".join(name_parts[1:-1])
-        elif len(name_parts) == 1:
-            parsed["first_name"] = name_parts[0]
+    # Use standardized parser for name extraction
+    if standardized_data.get("first_name"):
+        parsed["first_name"] = standardized_data["first_name"]
+    if standardized_data.get("last_name"):
+        parsed["last_name"] = standardized_data["last_name"]
+    if standardized_data.get("middle_name"):
+        parsed["middle_name"] = standardized_data["middle_name"]
     
-    # Extract SSN
-    ssn_match = re.search(r'ssn\s*(?:is|:)?\s*(\d{3}-\d{2}-\d{4})', info_lower)
-    ssn_match_alt = re.search(r'social\s*security\s*(?:number)?\s*(?:is|:)?\s*(\d{3}-\d{2}-\d{4})', info_lower)
-    if ssn_match:
-        parsed["ssn"] = ssn_match.group(1)
-    elif ssn_match_alt:
-        parsed["ssn"] = ssn_match_alt.group(1)
+    # Use standardized parser for SSN
+    if standardized_data.get("ssn"):
+        parsed["ssn"] = standardized_data["ssn"]
     
-    # Extract date of birth
-    dob_match = re.search(r'(?:birth|dob|born)\s*(?:date|on)?\s*(?:is|:)?\s*(\d{4}-\d{2}-\d{2})', info_lower)
-    dob_match_alt = re.search(r'(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4})', application_info)
-    if dob_match:
-        parsed["date_of_birth"] = dob_match.group(1)
-    elif dob_match_alt:
-        # Convert MM/DD/YYYY to YYYY-MM-DD
-        date_str = dob_match_alt.group(1)
-        try:
-            if '/' in date_str:
-                parts = date_str.split('/')
-            else:
-                parts = date_str.split('-')
-            if len(parts) == 3 and len(parts[2]) == 4:
-                parsed["date_of_birth"] = f"{parts[2]}-{parts[0]:0>2}-{parts[1]:0>2}"
-        except:
-            pass
+    # Use standardized parser for date of birth
+    if standardized_data.get("date_of_birth"):
+        parsed["date_of_birth"] = standardized_data["date_of_birth"]
     
-    # Extract phone
-    phone_match = re.search(r'phone\s*(?:number)?\s*(?:is|:)?\s*(\d{3}[-.]\d{3}[-.]\d{4})', application_info)
-    phone_match_alt = re.search(r'(\d{3}[-.]\d{3}[-.]\d{4})', application_info)
-    if phone_match:
-        parsed["phone"] = phone_match.group(1).replace('.', '-')
-    elif phone_match_alt:
-        parsed["phone"] = phone_match_alt.group(1).replace('.', '-')
+    # Use standardized parser for phone
+    if standardized_data.get("phone"):
+        parsed["phone"] = standardized_data["phone"]
     
-    # Extract email
-    email_match = re.search(r'email\s*(?:address)?\s*(?:is|:)?\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})', info_lower)
-    email_match_alt = re.search(r'([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})', application_info)
-    if email_match:
-        parsed["email"] = email_match.group(1)
-    elif email_match_alt:
-        parsed["email"] = email_match_alt.group(1)
+    # Use standardized parser for email
+    if standardized_data.get("email"):
+        parsed["email"] = standardized_data["email"]
     
-    # Extract income (monthly first, then annual)
-    monthly_income_match = re.search(r'(?:monthly\s*)?income\s*(?:is|of)?\s*\$?([0-9,]+)(?:\s*/?\s*month)?', info_lower)
-    annual_income_match = re.search(r'(?:annual|yearly)\s*income\s*(?:is|of)?\s*\$?([0-9,]+)', info_lower)
-    salary_match = re.search(r'salary\s*(?:is|of)?\s*\$?([0-9,]+)', info_lower)
+    # Use standardized parser for income
+    if standardized_data.get("monthly_income"):
+        parsed["monthly_gross_income"] = standardized_data["monthly_income"]
+    else:
+        # Fallback regex for edge cases
+        annual_income_match = re.search(r'(?:annual|yearly)\s*income\s*(?:is|of)?\s*\$?([0-9,]+)', info_lower)
+        salary_match = re.search(r'salary\s*(?:is|of)?\s*\$?([0-9,]+)', info_lower)
+        
+        if annual_income_match:
+            annual_income = float(annual_income_match.group(1).replace(',', ''))
+            parsed["monthly_gross_income"] = annual_income / 12
+        elif salary_match:
+            annual_salary = float(salary_match.group(1).replace(',', ''))
+            parsed["monthly_gross_income"] = annual_salary / 12
     
-    if monthly_income_match:
-        parsed["monthly_gross_income"] = float(monthly_income_match.group(1).replace(',', ''))
-    elif annual_income_match:
-        annual_income = float(annual_income_match.group(1).replace(',', ''))
-        parsed["monthly_gross_income"] = annual_income / 12
-    elif salary_match:
-        annual_salary = float(salary_match.group(1).replace(',', ''))
-        parsed["monthly_gross_income"] = annual_salary / 12
+    # Use standardized parser for financial data
+    if standardized_data.get("loan_amount"):
+        parsed["loan_amount"] = standardized_data["loan_amount"]
+    if standardized_data.get("property_value"):
+        parsed["property_value"] = standardized_data["property_value"]
+        # If loan amount not specified, assume 80% LTV
+        if not parsed.get("loan_amount") or parsed["loan_amount"] == 0.0:
+            parsed["loan_amount"] = parsed["property_value"] * 0.8
     
-    # Extract loan amount and property info
-    loan_match = re.search(r'loan\s*(?:amount|for)?\s*(?:is|of)?\s*\$?([0-9,]+)', info_lower)
-    home_price_match = re.search(r'(?:(?:home|house|property)\s*(?:price|cost|value)?\s*(?:is|of)?\s*\$?([0-9,]+)|(?:looking\s*at|buying)\s*(?:a\s*)?\$?([0-9,]+)\s*(?:home|house|property))', info_lower)
+    # Use standardized parser for property address
+    if standardized_data.get("address"):
+        parsed["property_address"] = standardized_data["address"]
     
-    if loan_match:
-        parsed["loan_amount"] = float(loan_match.group(1).replace(',', ''))
-    elif home_price_match:
-        property_value = None
-        for group in home_price_match.groups():
-            if group:
-                property_value = float(group.replace(',', ''))
-                break
-        if property_value:
-            parsed["property_value"] = property_value
-            # Assume 80% LTV if no specific loan amount given
-            parsed["loan_amount"] = property_value * 0.8
+    # Use standardized parser for down payment
+    if standardized_data.get("down_payment"):
+        parsed["down_payment"] = standardized_data["down_payment"]
+    else:
+        # Fallback for percentage format
+        down_percent_match = re.search(r'(\d+)%\s*down', info_lower)
+        if down_percent_match:
+            down_percent = float(down_percent_match.group(1)) / 100
+            if parsed["property_value"] > 0:
+                parsed["down_payment"] = parsed["property_value"] * down_percent
+            elif parsed["loan_amount"] > 0:
+                # Calculate property value from loan amount and down percent
+                parsed["property_value"] = parsed["loan_amount"] / (1 - down_percent)
+                parsed["down_payment"] = parsed["property_value"] * down_percent
     
-    # Extract property address
-    address_match = re.search(r'property\s*(?:address|at|located)?\s*(?:is|:)?\s*([^,\n]+(?:,\s*[^,\n]+)*)', application_info, re.IGNORECASE)
-    if address_match:
-        parsed["property_address"] = address_match.group(1).strip()
+    # Use standardized parser for credit score
+    if standardized_data.get("credit_score"):
+        parsed["credit_score"] = standardized_data["credit_score"]
     
-    # Extract down payment - check percentage first, then dollar amount
-    down_percent_match = re.search(r'(\d+)%\s*down', info_lower)
-    down_payment_match = re.search(r'(?:down\s*payment)\s*(?:is|of)?\s*\$?([0-9,]+)', info_lower)
+    # Use standardized parser for monthly debts
+    if standardized_data.get("monthly_debts"):
+        parsed["monthly_debts"] = standardized_data["monthly_debts"]
     
-    if down_percent_match:
-        down_percent = float(down_percent_match.group(1)) / 100
-        if parsed["property_value"] > 0:
-            parsed["down_payment"] = parsed["property_value"] * down_percent
-        elif parsed["loan_amount"] > 0:
-            # Calculate property value from loan amount and down percent
-            parsed["property_value"] = parsed["loan_amount"] / (1 - down_percent)
-            parsed["down_payment"] = parsed["property_value"] * down_percent
-    elif down_payment_match:
-        parsed["down_payment"] = float(down_payment_match.group(1).replace(',', ''))
-    
-    # Extract credit score
-    credit_match = re.search(r'credit\s*(?:score)?\s*(?:is|of)?\s*(\d{3})', info_lower)
-    if credit_match:
-        parsed["credit_score"] = int(credit_match.group(1))
-    
-    # Extract monthly debts
-    debt_match = re.search(r'(?:monthly\s*)?debt(?:s)?\s*(?:is|of)?\s*\$?([0-9,]+)', info_lower)
-    if debt_match:
-        parsed["monthly_debts"] = float(debt_match.group(1).replace(',', ''))
-    
-    # Extract assets/savings
-    assets_match = re.search(r'(?:assets?|savings?|cash)\s*(?:is|of)?\s*\$?([0-9,]+)', info_lower)
-    if assets_match:
-        parsed["liquid_assets"] = float(assets_match.group(1).replace(',', ''))
+    # Use standardized parser for assets
+    if standardized_data.get("liquid_assets"):
+        parsed["liquid_assets"] = standardized_data["liquid_assets"]
     
     # Extract employment details
     if 'self employed' in info_lower or 'self-employed' in info_lower:

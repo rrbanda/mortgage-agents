@@ -29,17 +29,24 @@ def extract_document_data(document_info: str) -> str:
     """
     
     try:
-        # Parse document info string
+        # Use standardized parser for document information
+        from agents.shared.input_parser import parse_mortgage_application
         import re
+        
+        # Parse using standardized parser first
+        parsed_data = parse_mortgage_application(document_info)
         info = document_info.lower()
         
         # Extract document type
         type_match = re.search(r'type:\s*([a-z_]+)', info)
         document_type = type_match.group(1) if type_match else "paystub"
         
-        # Extract borrower name
-        name_match = re.search(r'(?:content:|borrower:)\s*([a-z]+\s+[a-z]+)', info)
-        borrower_name = name_match.group(1).title() if name_match else "John Smith"
+        # Extract borrower name (use parser first, regex fallback)
+        if parsed_data.get("first_name") and parsed_data.get("last_name"):
+            borrower_name = f"{parsed_data['first_name']} {parsed_data['last_name']}"
+        else:
+            name_match = re.search(r'(?:content:|borrower:)\s*([a-z]+\s+[a-z]+)', info)
+            borrower_name = name_match.group(1).title() if name_match else "John Smith"
         
         # Extract document content (simplified)
         content_match = re.search(r'content:\s*(.+)', info)
