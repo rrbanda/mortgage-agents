@@ -26,13 +26,8 @@ class IdentityDocumentValidationInput(BaseModel):
     cross_reference_docs: Optional[List[Dict]] = Field(description="Other documents for cross-verification", default=None)
 
 
-@tool("validate_identity_document", args_schema=IdentityDocumentValidationInput, parse_docstring=True)
-def validate_identity_document(
-    document_content: str,
-    document_type: str,
-    file_name: Optional[str] = "id_document.txt",
-    cross_reference_docs: Optional[List[Dict]] = None
-) -> str:
+@tool
+def validate_identity_document(tool_input: str) -> str:
     """
     Comprehensive identity document validation using Neo4j ID verification rules.
     
@@ -40,18 +35,51 @@ def validate_identity_document(
     Supports Driver's License, Passport, State ID, and SSN Card verification.
     
     Args:
-        document_content: Text content of the identity document
-        document_type: Type of ID (drivers_license, passport, state_id, ssn_card)
-        file_name: Original filename of the document
-        cross_reference_docs: Other documents for cross-verification
+        tool_input: Identity document validation information in natural language format
         
+    Example:
+        "Document: drivers_license, File: license_scan.pdf, Content: John Smith, License: DL123456789, DOB: 1990-01-01, Expires: 2025-12-31"
+    
     Returns:
-        Comprehensive validation report with rule-based analysis
+        String containing comprehensive identity validation report with rule-based analysis
     """
     
     try:
-        initialize_connection()
+        # Use standardized parsing first, then custom parsing for tool-specific data
+        from agents.shared.input_parser import parse_mortgage_application
+        import re
+        
+        parsed_data = parse_mortgage_application(tool_input)
+        
+        # Extract identity document details from tool_input
+        input_lower = tool_input.lower()
+        
+        # Extract document content (this would typically be much longer)
+        content_match = re.search(r'content:\s*([^,]+)', tool_input)
+        document_content = content_match.group(1).strip() if content_match else "Sample ID document content"
+        
+        # Extract document type
+        type_match = re.search(r'document:\s*([^,]+)', input_lower)
+        document_type = type_match.group(1).strip() if type_match else "drivers_license"
+        
+        # Extract file name
+        file_match = re.search(r'file:\s*([^,]+)', input_lower)
+        file_name = file_match.group(1).strip() if file_match else "id_document.txt"
+        
+        # Cross reference docs would be handled separately - default to None for now
+        cross_reference_docs = None
+        
+        # Initialize database connection with robust error handling
+        if not initialize_connection():
+            return "❌ Failed to connect to Neo4j database. Please try again later."
+        
         connection = get_neo4j_connection()
+        
+        # ROBUST CONNECTION CHECK: Handle server environment issues
+        if connection.driver is None:
+            # Force reconnection if driver is None
+            if not connection.connect():
+                return "❌ Failed to establish Neo4j connection. Please restart the server."
         
         # Get relevant ID verification rules from Neo4j
         verification_rules = _get_id_verification_rules(connection, document_type)
@@ -86,8 +114,11 @@ def validate_identity_document(
         )
         
     except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error validating identity document: {e}")
         return f"""
- **ID Verification Error**
+❌ **ID Verification Error**
 
 **Document Type:** {document_type}
 **File:** {file_name}

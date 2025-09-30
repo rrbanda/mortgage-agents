@@ -37,8 +37,17 @@ def parse_neo4j_rule(rule_dict: Dict[str, Any]) -> Dict[str, Any]:
 def get_application_data_from_neo4j(application_id: str) -> Dict[str, Any]:
     """Retrieve complete application data from Neo4j database."""
     try:
-        initialize_connection()
+        # Initialize Neo4j connection with robust error handling
+        if not initialize_connection():
+            return {"error": "Failed to connect to Neo4j database"}
+        
         connection = get_neo4j_connection()
+        
+        # ROBUST CONNECTION CHECK: Handle server environment issues
+        if connection.driver is None:
+            # Force reconnection if driver is None
+            if not connection.connect():
+                return {"error": "Failed to establish Neo4j connection"}
         
         with connection.driver.session(database=connection.database) as session:
             # Query to get application data
@@ -61,9 +70,7 @@ def get_application_data_from_neo4j(application_id: str) -> Dict[str, Any]:
 
 
 @tool
-def generate_urla_1003_form(
-    application_id: str
-) -> str:
+def generate_urla_1003_form(tool_input: str) -> str:
     """
     Generate URLA Form 1003 from stored application data.
     
@@ -71,69 +78,98 @@ def generate_urla_1003_form(
     the standardized URLA Form 1003. Only requires the application ID.
     
     Args:
-        application_id: The application ID to generate the form for
+        tool_input: URLA generation request in natural language format
         
     Example:
-        "Generate URLA form for application APP_20240315_143022_JOH"
+        "Generate URLA form for application APP_20240315_143022_JOH" or "Application: APP_123"
+    
+    Returns:
+        String containing the generated URLA Form 1003 with all required sections
     """
     
-    # Get application data from Neo4j
-    app_data = get_application_data_from_neo4j(application_id)
-    
-    if "error" in app_data:
-        return f"❌ Error: {app_data['error']}"
-    
-    # Extract all the required parameters from stored data
-    first_name = app_data.get("first_name", "")
-    last_name = app_data.get("last_name", "")
-    ssn = app_data.get("ssn", "")
-    date_of_birth = app_data.get("date_of_birth", "")
-    phone = app_data.get("phone", "")
-    email = app_data.get("email", "")
-    current_street = app_data.get("current_street", "")
-    current_city = app_data.get("current_city", "")
-    current_state = app_data.get("current_state", "")
-    current_zip = app_data.get("current_zip", "")
-    years_at_address = app_data.get("years_at_address", 0.0)
-    employer_name = app_data.get("employer_name", "")
-    job_title = app_data.get("job_title", "")
-    years_employed = app_data.get("years_employed", 0.0)
-    monthly_gross_income = app_data.get("monthly_gross_income", 0.0)
-    employment_type = app_data.get("employment_type", "w2")
-    loan_amount = app_data.get("loan_amount", 0.0)
-    loan_purpose = app_data.get("loan_purpose", "purchase")
-    property_address = app_data.get("property_address", "")
-    property_type = app_data.get("property_type", "single_family_detached")
-    occupancy_type = app_data.get("occupancy_type", "primary_residence")
-    middle_name = app_data.get("middle_name", "")
-    suffix = app_data.get("suffix", "")
-    marital_status = app_data.get("marital_status", "Single")
-    number_of_dependents = app_data.get("number_of_dependents", 0)
-    monthly_housing_expense = app_data.get("monthly_housing_expense", 0.0)
-    checking_account_balance = app_data.get("checking_account_balance", 0.0)
-    savings_account_balance = app_data.get("savings_account_balance", 0.0)
-    investment_account_balance = app_data.get("investment_account_balance", 0.0)
-    retirement_account_balance = app_data.get("retirement_account_balance", 0.0)
-    other_assets_value = app_data.get("other_assets_value", 0.0)
-    monthly_debts = app_data.get("monthly_debts", 0.0)
-    installment_debt_balance = app_data.get("installment_debt_balance", 0.0)
-    revolving_debt_balance = app_data.get("revolving_debt_balance", 0.0)
-    mortgage_debt_balance = app_data.get("mortgage_debt_balance", 0.0)
-    property_value = app_data.get("property_value", 0.0)
-    down_payment = app_data.get("down_payment", 0.0)
-    outstanding_judgments = app_data.get("outstanding_judgments", False)
-    declared_bankruptcy = app_data.get("declared_bankruptcy", False)
-    foreclosure_or_deed = app_data.get("foreclosure_or_deed", False)
-    party_to_lawsuit = app_data.get("party_to_lawsuit", False)
-    us_citizen = app_data.get("us_citizen", True)
-    permanent_resident = app_data.get("permanent_resident", False)
-    military_service = app_data.get("military_service", False)
-    military_status = app_data.get("military_status", "")
-    
     try:
-        # Initialize Neo4j connection
-        initialize_connection()
+        # Use standardized parsing first, then custom parsing for tool-specific data
+        from agents.shared.input_parser import parse_mortgage_application
+        import re
+        
+        parsed_data = parse_mortgage_application(tool_input)
+        
+        # Extract application ID from tool_input
+        app_match = re.search(r'(?:application|app):\s*([^,\s]+)', tool_input.lower())
+        if not app_match:
+            # Try to find APP_ pattern directly
+            app_match = re.search(r'(APP_[A-Z0-9_]+)', tool_input, re.IGNORECASE)
+        
+        if app_match:
+            application_id = app_match.group(1).strip()
+        else:
+            # If no clear pattern, use the whole input as application ID
+            application_id = tool_input.strip()
+        
+        # Get application data from Neo4j
+        app_data = get_application_data_from_neo4j(application_id)
+        
+        if "error" in app_data:
+            return f"❌ Error: {app_data['error']}"
+        
+        # Extract all the required parameters from stored data
+        first_name = app_data.get("first_name", "")
+        last_name = app_data.get("last_name", "")
+        ssn = app_data.get("ssn", "")
+        date_of_birth = app_data.get("date_of_birth", "")
+        phone = app_data.get("phone", "")
+        email = app_data.get("email", "")
+        current_street = app_data.get("current_street", "")
+        current_city = app_data.get("current_city", "")
+        current_state = app_data.get("current_state", "")
+        current_zip = app_data.get("current_zip", "")
+        years_at_address = app_data.get("years_at_address", 0.0)
+        employer_name = app_data.get("employer_name", "")
+        job_title = app_data.get("job_title", "")
+        years_employed = app_data.get("years_employed", 0.0)
+        monthly_gross_income = app_data.get("monthly_gross_income", 0.0)
+        employment_type = app_data.get("employment_type", "w2")
+        loan_amount = app_data.get("loan_amount", 0.0)
+        loan_purpose = app_data.get("loan_purpose", "purchase")
+        property_address = app_data.get("property_address", "")
+        property_type = app_data.get("property_type", "single_family_detached")
+        occupancy_type = app_data.get("occupancy_type", "primary_residence")
+        middle_name = app_data.get("middle_name", "")
+        suffix = app_data.get("suffix", "")
+        marital_status = app_data.get("marital_status", "Single")
+        number_of_dependents = app_data.get("number_of_dependents", 0)
+        monthly_housing_expense = app_data.get("monthly_housing_expense", 0.0)
+        checking_account_balance = app_data.get("checking_account_balance", 0.0)
+        savings_account_balance = app_data.get("savings_account_balance", 0.0)
+        investment_account_balance = app_data.get("investment_account_balance", 0.0)
+        retirement_account_balance = app_data.get("retirement_account_balance", 0.0)
+        other_assets_value = app_data.get("other_assets_value", 0.0)
+        monthly_debts = app_data.get("monthly_debts", 0.0)
+        installment_debt_balance = app_data.get("installment_debt_balance", 0.0)
+        revolving_debt_balance = app_data.get("revolving_debt_balance", 0.0)
+        mortgage_debt_balance = app_data.get("mortgage_debt_balance", 0.0)
+        property_value = app_data.get("property_value", 0.0)
+        down_payment = app_data.get("down_payment", 0.0)
+        outstanding_judgments = app_data.get("outstanding_judgments", False)
+        declared_bankruptcy = app_data.get("declared_bankruptcy", False)
+        foreclosure_or_deed = app_data.get("foreclosure_or_deed", False)
+        party_to_lawsuit = app_data.get("party_to_lawsuit", False)
+        us_citizen = app_data.get("us_citizen", True)
+        permanent_resident = app_data.get("permanent_resident", False)
+        military_service = app_data.get("military_service", False)
+        military_status = app_data.get("military_status", "")
+        
+        # Initialize Neo4j connection with robust error handling
+        if not initialize_connection():
+            return "❌ Failed to connect to Neo4j database. Please try again later."
+        
         connection = get_neo4j_connection()
+        
+        # ROBUST CONNECTION CHECK: Handle server environment issues
+        if connection.driver is None:
+            # Force reconnection if driver is None
+            if not connection.connect():
+                return "❌ Failed to establish Neo4j connection. Please restart the server."
         
         with connection.driver.session(database=connection.database) as session:
             # Get URLA form structure rules
@@ -471,7 +507,7 @@ def generate_urla_1003_form(
         
     except Exception as e:
         logger.error(f"Error during URLA generation: {e}")
-        return f" Error during URLA generation: {str(e)}"
+        return f"❌ Error during URLA generation: {str(e)}"
 
 
 def validate_tool() -> bool:

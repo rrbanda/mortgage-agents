@@ -53,8 +53,17 @@ def extract_document_data(document_info: str) -> str:
         document_content = content_match.group(1) if content_match else info
         
         # Get rules from Neo4j
-        initialize_connection()
+        # Initialize database connection with robust error handling
+        if not initialize_connection():
+            return "❌ Failed to connect to Neo4j database. Please try again later."
+        
         connection = get_neo4j_connection()
+        
+        # ROBUST CONNECTION CHECK: Handle server environment issues
+        if connection.driver is None:
+            # Force reconnection if driver is None
+            if not connection.connect():
+                return "❌ Failed to establish Neo4j connection. Please restart the server."
         
         with connection.driver.session(database=connection.database) as session:
             query = """

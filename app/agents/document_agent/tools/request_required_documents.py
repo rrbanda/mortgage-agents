@@ -25,12 +25,8 @@ class DocumentRequestInput(BaseModel):
     missing_documents: Optional[List[str]] = Field(description="Specific documents that are missing", default=None)
 
 
-@tool("request_required_documents", args_schema=DocumentRequestInput, parse_docstring=True)
-def request_required_documents(
-    application_id: str, 
-    loan_program: Optional[str] = None,
-    missing_documents: Optional[List[str]] = None
-) -> str:
+@tool
+def request_required_documents(tool_input: str) -> str:
     """
     Generate document request for mortgage application using Neo4j business rules.
     
@@ -38,18 +34,52 @@ def request_required_documents(
     instead of using hardcoded document lists.
     
     Args:
-        application_id: Unique identifier for the mortgage application
-        loan_program: Loan program type to get specific requirements (optional)
-        missing_documents: Specific documents that are missing (optional)
+        tool_input: Document request information in natural language format
         
+    Example:
+        "Application: APP_123, Loan program: FHA, Missing documents: paystub, w2, bank_statement"
+    
     Returns:
-        Document request details with submission instructions
+        String containing document request details with submission instructions
     """
     
     try:
-        # Initialize database connection
-        initialize_connection()
+        # Use standardized parsing first, then custom parsing for tool-specific data
+        from agents.shared.input_parser import parse_mortgage_application
+        import re
+        
+        parsed_data = parse_mortgage_application(tool_input)
+        
+        # Extract document request details from tool_input
+        input_lower = tool_input.lower()
+        
+        # Extract application ID
+        app_match = re.search(r'application:\s*([^,]+)', input_lower)
+        application_id = app_match.group(1).strip() if app_match else "APP_UNKNOWN"
+        
+        # Extract loan program
+        loan_match = re.search(r'loan\s*program:\s*([^,]+)', input_lower)
+        loan_program = loan_match.group(1).strip() if loan_match else None
+        
+        # Extract missing documents (parse comma-separated list)
+        missing_match = re.search(r'missing\s*documents?:\s*([^,]+(?:,\s*[^,]+)*)', input_lower)
+        if missing_match:
+            missing_docs_str = missing_match.group(1).strip()
+            missing_documents = [doc.strip() for doc in missing_docs_str.split(',')]
+        else:
+            missing_documents = None
+        
+        # Initialize database connection with robust error handling
+        if not initialize_connection():
+            return "❌ Failed to connect to Neo4j database. Please try again later."
+        
         connection = get_neo4j_connection()
+        
+        # ROBUST CONNECTION CHECK: Handle server environment issues
+        if connection.driver is None:
+            # Force reconnection if driver is None
+            if not connection.connect():
+                return "❌ Failed to establish Neo4j connection. Please restart the server."
         
         # Get required documents from Neo4j business rules
         required_docs = _get_required_documents_from_rules(connection, loan_program)
@@ -96,7 +126,10 @@ Your application cannot proceed until all required documents are received and ve
 """
         
     except Exception as e:
-        return f" Error generating document request: {str(e)}"
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error generating document request: {e}")
+        return f"❌ Error generating document request: {str(e)}"
 
 
 def _get_required_documents_from_rules(connection, loan_program: Optional[str]) -> List[str]:

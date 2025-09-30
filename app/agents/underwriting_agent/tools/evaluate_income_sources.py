@@ -40,12 +40,8 @@ class IncomeEvaluationRequest(BaseModel):
     applicant_age: Optional[int] = Field(description="Applicant age (relevant for retirement income)", default=None)
 
 
-@tool("evaluate_income_sources", args_schema=IncomeEvaluationRequest, parse_docstring=True)
-def evaluate_income_sources(
-    income_sources: List[Dict[str, Any]],
-    loan_program: str,
-    applicant_age: Optional[int] = None
-) -> str:
+@tool
+def evaluate_income_sources(tool_input: str) -> str:
     """
     Evaluate and analyze income sources for mortgage underwriting qualification.
     
@@ -53,17 +49,80 @@ def evaluate_income_sources(
     rules stored in Neo4j to determine usable income and documentation requirements.
     
     Args:
-        income_sources: List of income sources with type, amount, and stability info
-        loan_program: Loan program type (conventional, fha, va, usda, jumbo)
-        applicant_age: Applicant age (relevant for retirement income analysis)
+        tool_input: Income evaluation request in natural language format
         
+    Example:
+        "Income sources: W2 $6000/month 3 years ABC Corp, Rental $1500/month 2 years continuing, Loan: FHA, Age: 35"
+    
     Returns:
-        Formatted income evaluation report with qualifying income calculations
+        String containing formatted income evaluation report with qualifying income calculations
     """
-    initialize_connection()
-    connection = get_neo4j_connection()
     
     try:
+        # Use standardized parsing first, then custom parsing for tool-specific data
+        from agents.shared.input_parser import parse_mortgage_application
+        import re
+        
+        parsed_data = parse_mortgage_application(tool_input)
+        input_lower = tool_input.lower()
+        
+        # Extract loan program
+        loan_match = re.search(r'loan:\s*([a-z_]+)', input_lower)
+        loan_program = loan_match.group(1) if loan_match else "conventional"
+        
+        # Extract applicant age
+        age_match = re.search(r'age:\s*(\d+)', input_lower)
+        applicant_age = int(age_match.group(1)) if age_match else None
+        
+        # Parse income sources from the input (simplified parsing for natural language)
+        income_sources = []
+        
+        # Look for income patterns like "W2 $6000/month 3 years ABC Corp"
+        income_patterns = re.findall(r'(\w+)\s*\$?([0-9,]+)/?month\s*(\d+(?:\.\d+)?)\s*years?\s*([^,]*?)(?:,|$)', tool_input, re.IGNORECASE)
+        
+        for pattern in income_patterns:
+            income_type = pattern[0].lower()
+            if income_type == "w2": income_type = "w2_salary"
+            elif income_type == "rental": income_type = "rental"
+            elif income_type == "commission": income_type = "commission"
+            elif income_type == "bonus": income_type = "bonus"
+            elif income_type == "pension": income_type = "pension"
+            else: income_type = "w2_salary"  # default
+            
+            monthly_amount = float(pattern[1].replace(',', ''))
+            years_received = float(pattern[2])
+            employer_name = pattern[3].strip() if pattern[3].strip() else None
+            
+            income_sources.append({
+                "income_type": income_type,
+                "monthly_amount": monthly_amount,
+                "years_received": years_received,
+                "employer_name": employer_name,
+                "is_continuing": True  # assume continuing unless specified
+            })
+        
+        # If no patterns found, create a default income source
+        if not income_sources:
+            income_sources = [{
+                "income_type": "w2_salary",
+                "monthly_amount": 5000.0,
+                "years_received": 2.0,
+                "employer_name": "Current Employer",
+                "is_continuing": True
+            }]
+        
+        # Initialize Neo4j connection with robust error handling
+        if not initialize_connection():
+            return "❌ Failed to connect to Neo4j database. Please try again later."
+        
+        connection = get_neo4j_connection()
+        
+        # ROBUST CONNECTION CHECK: Handle server environment issues
+        if connection.driver is None:
+            # Force reconnection if driver is None
+            if not connection.connect():
+                return "❌ Failed to establish Neo4j connection. Please restart the server."
+        
         # Query income calculation rules
         income_rules_query = """
         MATCH (r:IncomeCalculationRule)
@@ -112,7 +171,10 @@ def evaluate_income_sources(
         )
         
     except Exception as e:
-        return f" Error during income evaluation: {str(e)}"
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error during income evaluation: {e}")
+        return f"❌ Error during income evaluation: {str(e)}"
 
 
 def _evaluate_single_income_source(

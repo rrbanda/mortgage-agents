@@ -27,14 +27,8 @@ class DocumentUploadInput(BaseModel):
     file_size: int = Field(description="File size in bytes", default=0)
 
 
-@tool("process_uploaded_document", args_schema=DocumentUploadInput, parse_docstring=True)
-def process_uploaded_document(
-    document_content: str,
-    file_name: str,
-    document_type: str = "unknown",
-    application_id: Optional[str] = None,
-    file_size: int = 0
-) -> str:
+@tool
+def process_uploaded_document(tool_input: str) -> str:
     """
     Process uploaded document using Neo4j Document Verification Rules.
     
@@ -42,20 +36,56 @@ def process_uploaded_document(
     and stores in both Neo4j and vector database for processing.
     
     Args:
-        document_content: Text content of the document
-        file_name: Original filename
-        document_type: Type of document
-        application_id: Application ID to link to (will create if not provided)
-        file_size: File size in bytes
+        tool_input: Document processing information in natural language format
         
+    Example:
+        "Document: paystub, File: john_paystub_jan2024.pdf, Content: John Smith pay period 01/01-01/15..., Application: APP_123, Size: 2048"
+    
     Returns:
-        Processing confirmation with validation results
+        String containing document processing results and validation status
     """
     
     try:
-        # Initialize database connection
-        initialize_connection()
+        # Use standardized parsing first, then custom parsing for tool-specific data
+        from agents.shared.input_parser import parse_mortgage_application
+        import re
+        
+        parsed_data = parse_mortgage_application(tool_input)
+        
+        # Extract document details from tool_input
+        input_lower = tool_input.lower()
+        
+        # Extract document content (this would typically be much longer)
+        content_match = re.search(r'content:\s*([^,]+)', tool_input)
+        document_content = content_match.group(1).strip() if content_match else "Sample document content"
+        
+        # Extract file name
+        file_match = re.search(r'file:\s*([^,]+)', input_lower)
+        file_name = file_match.group(1).strip() if file_match else "unknown_document.pdf"
+        
+        # Extract document type
+        type_match = re.search(r'document:\s*([^,]+)', input_lower)
+        document_type = type_match.group(1).strip() if type_match else "unknown"
+        
+        # Extract application ID
+        app_match = re.search(r'application:\s*([^,]+)', input_lower)
+        application_id = app_match.group(1).strip() if app_match else None
+        
+        # Extract file size
+        size_match = re.search(r'size:\s*(\d+)', input_lower)
+        file_size = int(size_match.group(1)) if size_match else 0
+        
+        # Initialize database connection with robust error handling
+        if not initialize_connection():
+            return "❌ Failed to connect to Neo4j database. Please try again later."
+        
         connection = get_neo4j_connection()
+        
+        # ROBUST CONNECTION CHECK: Handle server environment issues
+        if connection.driver is None:
+            # Force reconnection if driver is None
+            if not connection.connect():
+                return "❌ Failed to establish Neo4j connection. Please restart the server."
         
         # Generate document ID
         document_id = f"DOC_{uuid.uuid4().hex[:8].upper()}"
@@ -105,7 +135,10 @@ def process_uploaded_document(
 """
         
     except Exception as e:
-        return f" Error processing document: {str(e)}"
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error processing document: {e}")
+        return f"❌ Error processing document: {str(e)}"
 
 
 def _validate_document_against_rules(connection, content: str, doc_type: str, filename: str) -> dict:

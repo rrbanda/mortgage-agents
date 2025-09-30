@@ -20,8 +20,8 @@ class DocumentStatusRequest(BaseModel):
     application_id: str = Field(description="Application identifier to check document status for")
 
 
-@tool("get_document_status", args_schema=DocumentStatusRequest, parse_docstring=True)
-def get_document_status(application_id: str) -> str:
+@tool
+def get_document_status(tool_input: str) -> str:
     """
     Get comprehensive document status for a mortgage application from Neo4j.
     
@@ -29,16 +29,45 @@ def get_document_status(application_id: str) -> str:
     and processing progress based on real data from the knowledge graph.
     
     Args:
-        application_id: Application identifier
+        tool_input: Document status request in natural language format
         
+    Example:
+        "Application: APP_123" or "Get status for APP_20241219_123"
+    
     Returns:
-        Detailed document collection and verification status report
+        String containing detailed document collection and verification status report
     """
     
     try:
-        # Initialize database connection
-        initialize_connection()
+        # Use standardized parsing first, then custom parsing for tool-specific data
+        from agents.shared.input_parser import parse_mortgage_application
+        import re
+        
+        parsed_data = parse_mortgage_application(tool_input)
+        
+        # Extract application ID from tool_input
+        app_match = re.search(r'(?:application|app):\s*([^,\s]+)', tool_input.lower())
+        if not app_match:
+            # Try to find APP_ pattern directly
+            app_match = re.search(r'(APP_[A-Z0-9_]+)', tool_input, re.IGNORECASE)
+        
+        if app_match:
+            application_id = app_match.group(1).strip()
+        else:
+            # If no clear pattern, use the whole input as application ID
+            application_id = tool_input.strip()
+        
+        # Initialize database connection with robust error handling
+        if not initialize_connection():
+            return "❌ Failed to connect to Neo4j database. Please try again later."
+        
         connection = get_neo4j_connection()
+        
+        # ROBUST CONNECTION CHECK: Handle server environment issues
+        if connection.driver is None:
+            # Force reconnection if driver is None
+            if not connection.connect():
+                return "❌ Failed to establish Neo4j connection. Please restart the server."
         
         # Get comprehensive document status from Neo4j
         status_data = _get_status_from_neo4j(connection, application_id)
@@ -67,9 +96,12 @@ The specified application ID was not found in the system.
         return _format_status_report(application_id, status_data)
         
     except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error retrieving document status: {e}")
         error_msg = str(e)
         return f"""
- **Error Retrieving Document Status**
+❌ **Error Retrieving Document Status**
 
 **Application ID:** {application_id}
 **Error Details:** {error_msg}

@@ -38,16 +38,8 @@ class DTICalculationRequest(BaseModel):
     overtime_available: bool = Field(description="Is overtime income available?", default=False)
 
 
-@tool("calculate_debt_to_income", args_schema=DTICalculationRequest, parse_docstring=True)
-def calculate_debt_to_income(
-    monthly_gross_income: float,
-    monthly_housing_payment: float,
-    monthly_debt_payments: float,
-    loan_program: str,
-    income_sources: List[str] = None,
-    employment_years: float = 2.0,
-    overtime_available: bool = False
-) -> str:
+@tool
+def calculate_debt_to_income(tool_input: str) -> str:
     """
     Calculate and analyze debt-to-income ratios for mortgage underwriting.
     
@@ -55,24 +47,65 @@ def calculate_debt_to_income(
     against underwriting rules stored in Neo4j for the specific loan program.
     
     Args:
-        monthly_gross_income: Total monthly gross income from all sources
-        monthly_housing_payment: Proposed monthly housing payment (PITI)
-        monthly_debt_payments: Total monthly debt payments (excluding housing)
-        loan_program: Loan program type (conventional, fha, va, usda, jumbo)
-        income_sources: List of income source types
-        employment_years: Years at current employment
-        overtime_available: Whether overtime income is available
+        tool_input: DTI calculation request in natural language format
         
-    Returns:
-        Formatted DTI analysis report with recommendations
-    """
-    if income_sources is None:
-        income_sources = ["w2_salary"]
+    Example:
+        "Income: $8500, Housing: $2100, Debts: $800, Loan: FHA, Employment: 3 years, Overtime: yes"
     
-    initialize_connection()
-    connection = get_neo4j_connection()
+    Returns:
+        String containing formatted DTI analysis report with recommendations
+    """
     
     try:
+        # Use standardized parsing first, then custom parsing for tool-specific data
+        from agents.shared.input_parser import parse_mortgage_application, calculate_dti_ratios
+        import re
+        
+        parsed_data = parse_mortgage_application(tool_input)
+        input_lower = tool_input.lower()
+        
+        # Extract DTI calculation parameters (prioritize parsed data, fall back to regex)
+        monthly_gross_income = parsed_data.get("monthly_income")
+        if not monthly_gross_income:
+            income_match = re.search(r'income:\s*\$?([0-9,]+)', input_lower)
+            monthly_gross_income = float(income_match.group(1).replace(',', '')) if income_match else 5000.0
+        
+        housing_match = re.search(r'housing:\s*\$?([0-9,]+)', input_lower)
+        monthly_housing_payment = float(housing_match.group(1).replace(',', '')) if housing_match else 1500.0
+        
+        monthly_debt_payments = parsed_data.get("monthly_debts")
+        if not monthly_debt_payments:
+            debts_match = re.search(r'debts:\s*\$?([0-9,]+)', input_lower)
+            monthly_debt_payments = float(debts_match.group(1).replace(',', '')) if debts_match else 500.0
+        
+        loan_match = re.search(r'loan:\s*([a-z_]+)', input_lower)
+        loan_program = loan_match.group(1) if loan_match else "conventional"
+        
+        emp_years_match = re.search(r'employment:\s*(\d+(?:\.\d+)?)\s*years?', input_lower)
+        employment_years = float(emp_years_match.group(1)) if emp_years_match else 2.0
+        
+        overtime_available = "overtime: yes" in input_lower or "overtime: true" in input_lower
+        
+        # Parse income sources (simplified for now)
+        income_sources = []
+        if "w2" in input_lower: income_sources.append("w2_salary")
+        if "self-employed" in input_lower: income_sources.append("self_employed")
+        if "commission" in input_lower: income_sources.append("commission")
+        if not income_sources:
+            income_sources = ["w2_salary"]
+        
+        # Initialize Neo4j connection with robust error handling
+        if not initialize_connection():
+            return "❌ Failed to connect to Neo4j database. Please try again later."
+        
+        connection = get_neo4j_connection()
+        
+        # ROBUST CONNECTION CHECK: Handle server environment issues
+        if connection.driver is None:
+            # Force reconnection if driver is None
+            if not connection.connect():
+                return "❌ Failed to establish Neo4j connection. Please restart the server."
+        
         # Query underwriting rules for DTI analysis
         dti_rules_query = """
         MATCH (r:UnderwritingRule) 
@@ -98,10 +131,21 @@ def calculate_debt_to_income(
         if not dti_rules:
             return " No DTI analysis rules found in Neo4j. Please load underwriting rules first."
         
-        # Calculate DTI ratios
-        dti_calculations = _calculate_dti_ratios(
+        # Calculate DTI ratios using shared utility
+        dti_ratios = calculate_dti_ratios(
             monthly_gross_income, monthly_housing_payment, monthly_debt_payments
         )
+        
+        # Reformat for backwards compatibility with existing tool logic
+        dti_calculations = {
+            "monthly_gross_income": monthly_gross_income,
+            "monthly_housing_payment": monthly_housing_payment,
+            "monthly_debt_payments": monthly_debt_payments,
+            "total_monthly_debt": monthly_housing_payment + monthly_debt_payments,
+            "front_end_dti": dti_ratios["front_end_dti"],
+            "back_end_dti": dti_ratios["back_end_dti"],
+            "remaining_income": monthly_gross_income - (monthly_housing_payment + monthly_debt_payments)
+        }
         
         # Validate against program requirements
         program_validation = _validate_dti_requirements(
@@ -123,32 +167,12 @@ def calculate_debt_to_income(
         )
         
     except Exception as e:
-        return f" Error during DTI analysis: {str(e)}"
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error during DTI analysis: {e}")
+        return f"❌ Error during DTI analysis: {str(e)}"
 
 
-def _calculate_dti_ratios(
-    gross_income: float, 
-    housing_payment: float, 
-    debt_payments: float
-) -> Dict[str, Any]:
-    """Calculate front-end and back-end DTI ratios."""
-    
-    # Front-end DTI (housing payment / gross income)
-    front_end_dti = (housing_payment / gross_income) * 100 if gross_income > 0 else 0
-    
-    # Back-end DTI (total debt including housing / gross income)
-    total_debt = housing_payment + debt_payments
-    back_end_dti = (total_debt / gross_income) * 100 if gross_income > 0 else 0
-    
-    return {
-        "monthly_gross_income": gross_income,
-        "monthly_housing_payment": housing_payment,
-        "monthly_debt_payments": debt_payments,
-        "total_monthly_debt": total_debt,
-        "front_end_dti": round(front_end_dti, 2),
-        "back_end_dti": round(back_end_dti, 2),
-        "remaining_income": gross_income - total_debt
-    }
 
 
 def _validate_dti_requirements(
@@ -173,10 +197,10 @@ def _validate_dti_requirements(
             try:
                 dti_limits = json.loads(rule.get("dti_limits", "{}"))
                 
-                # Get program-specific limits
+                # Get program-specific limits from Neo4j with conservative fallbacks
                 program_limits = dti_limits.get(loan_program, {})
-                front_limit = program_limits.get("front_end", 28)
-                back_limit = program_limits.get("back_end", 43)
+                front_limit = program_limits.get("front_end", 28)  # Conservative fallback
+                back_limit = program_limits.get("back_end", 43)    # Conservative fallback
                 
                 validation["front_end_limit"] = front_limit
                 validation["back_end_limit"] = back_limit

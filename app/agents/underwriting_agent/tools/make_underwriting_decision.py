@@ -52,11 +52,17 @@ class UnderwritingFactors(BaseModel):
 
 
 @tool
-def make_underwriting_decision(analysis_summary: str) -> str:
+def make_underwriting_decision(tool_input: str) -> str:
     """Make comprehensive underwriting decision based on all application factors.
     
     Args:
-        analysis_summary: Summary like "Credit: 720 LOW risk, Income: 95000 good stability, DTI: 10.7% front, 15.2% back, Loan: conventional 390000, Down: 13.3%, Property: 450000, Reserves: 8 months"
+        tool_input: Underwriting analysis summary in natural language format
+        
+    Example:
+        "Credit: 720 LOW risk, Income: 95000 good stability, DTI: 10.7% front, 15.2% back, Loan: conventional 390000, Down: 13.3%, Property: 450000, Reserves: 8 months"
+    
+    Returns:
+        String containing comprehensive underwriting decision with detailed reasoning
     """
     
     try:
@@ -65,8 +71,8 @@ def make_underwriting_decision(analysis_summary: str) -> str:
         import re
         
         # Parse using standardized parser first
-        parsed_data = parse_mortgage_application(analysis_summary)
-        summary = analysis_summary.lower()
+        parsed_data = parse_mortgage_application(tool_input)
+        summary = tool_input.lower()
         
         # Extract credit score and risk (use parser first, regex fallback)
         credit_score = parsed_data.get("credit_score") or 720
@@ -118,8 +124,18 @@ def make_underwriting_decision(analysis_summary: str) -> str:
         first_time_buyer = True
         property_type = "primary_residence"
         
-        initialize_connection()
+        # Initialize Neo4j connection with robust error handling
+        if not initialize_connection():
+            return "❌ Failed to connect to Neo4j database. Please try again later."
+        
         connection = get_neo4j_connection()
+        
+        # ROBUST CONNECTION CHECK: Handle server environment issues
+        if connection.driver is None:
+            # Force reconnection if driver is None
+            if not connection.connect():
+                return "❌ Failed to establish Neo4j connection. Please restart the server."
+        
         # Query underwriting decision rules
         decision_rules_query = """
         MATCH (r:UnderwritingRule) 
@@ -137,7 +153,11 @@ def make_underwriting_decision(analysis_summary: str) -> str:
         
         # Calculate derived metrics
         ltv_ratio = (loan_amount / property_value) * 100 if property_value > 0 else 0
-        debt_to_income_monthly = (front_end_dti / 100) * monthly_gross_income + (back_end_dti / 100) * monthly_gross_income
+        
+        # Calculate actual monthly debt amounts from DTI ratios (FIX: correct calculation)
+        monthly_housing_payment = (front_end_dti / 100) * monthly_gross_income
+        total_monthly_debt = (back_end_dti / 100) * monthly_gross_income
+        monthly_non_housing_debt = total_monthly_debt - monthly_housing_payment
         
         # Collect all factors for analysis
         underwriting_factors = {
@@ -154,7 +174,12 @@ def make_underwriting_decision(analysis_summary: str) -> str:
             "cash_reserves_months": cash_reserves_months,
             "loan_program": loan_program,
             "property_type": property_type,
-            "first_time_buyer": first_time_buyer
+            "first_time_buyer": first_time_buyer,
+            # Corrected debt calculations
+            "monthly_gross_income": monthly_gross_income,
+            "monthly_housing_payment": monthly_housing_payment,
+            "total_monthly_debt": total_monthly_debt,
+            "monthly_non_housing_debt": monthly_non_housing_debt
         }
         
         # Analyze approval factors
@@ -178,7 +203,85 @@ def make_underwriting_decision(analysis_summary: str) -> str:
         )
         
     except Exception as e:
-        return f" Error during underwriting decision: {str(e)}"
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error during underwriting decision: {e}")
+        return f"❌ Error during underwriting decision: {str(e)}"
+
+
+def _get_fallback_dti_limits(loan_program: str) -> Dict[str, float]:
+    """Fallback DTI limits when Neo4j rules are unavailable (minimal hardcoding)."""
+    
+    # Conservative fallbacks - prefer Neo4j rules when available
+    fallback_limits = {
+        "fha": {"front_end": 31.0, "back_end": 43.0},
+        "conventional": {"front_end": 28.0, "back_end": 45.0},
+        "va": {"front_end": 100.0, "back_end": 100.0},  # VA has no DTI limit
+        "usda": {"front_end": 29.0, "back_end": 41.0},
+    }
+    
+    # Default to conservative QM limits when program unknown
+    return fallback_limits.get(loan_program.lower(), {"front_end": 28.0, "back_end": 43.0})
+
+
+def _get_max_ltv_from_rules(loan_program: str, property_type: str, rules: List[Dict]) -> float:
+    """Get max LTV from Neo4j rules with minimal fallbacks."""
+    
+    # Try to find LTV rules in Neo4j first
+    for rule in rules:
+        if rule.get("rule_type") == "ltv_requirements" and loan_program in rule.get("loan_programs", []):
+            try:
+                ltv_limits = json.loads(rule.get("ltv_limits", "{}"))
+                program_limits = ltv_limits.get(loan_program, {})
+                property_limit = program_limits.get(property_type)
+                if property_limit:
+                    return float(property_limit)
+            except:
+                continue
+    
+    # Fallback only when Neo4j rules unavailable
+    fallback_ltv = {
+        "conventional": {"primary_residence": 97, "investment": 75, "vacation_home": 90},
+        "fha": {"primary_residence": 96.5, "investment": 85, "vacation_home": 96.5},
+        "va": {"primary_residence": 100, "investment": 90, "vacation_home": 100},
+        "usda": {"primary_residence": 100, "investment": 80, "vacation_home": 90},
+        "jumbo": {"primary_residence": 90, "investment": 70, "vacation_home": 80}
+    }
+    
+    return fallback_ltv.get(loan_program, {}).get(property_type, 80)
+
+
+def _check_property_type_restrictions(property_type: str, loan_program: str, rules: List[Dict]) -> Dict[str, any]:
+    """Check property type restrictions from Neo4j rules first."""
+    
+    # Query Neo4j rules for property restrictions
+    for rule in rules:
+        if rule.get("rule_type") == "property_restrictions":
+            try:
+                restrictions = json.loads(rule.get("property_restrictions", "{}"))
+                program_restrictions = restrictions.get(loan_program, {})
+                type_restrictions = program_restrictions.get(property_type, {})
+                if type_restrictions:
+                    return {
+                        "program_available": type_restrictions.get("available", True),
+                        "special_requirements": type_restrictions.get("requirements", [])
+                    }
+            except:
+                continue
+    
+    # Minimal fallback when Neo4j rules unavailable
+    unavailable_combinations = [
+        ("fha", "investment"), ("fha", "vacation_home"),
+        ("va", "investment"), ("va", "vacation_home"),
+        ("usda", "investment"), ("usda", "vacation_home")
+    ]
+    
+    program_available = (loan_program, property_type) not in unavailable_combinations
+    
+    return {
+        "program_available": program_available,
+        "special_requirements": ["Verify program eligibility"] if not program_available else []
+    }
 
 
 def _analyze_approval_factors(factors: Dict[str, Any], rules: List[Dict]) -> Dict[str, Any]:
@@ -211,10 +314,13 @@ def _analyze_approval_factors(factors: Dict[str, Any], rules: List[Dict]) -> Dic
         if rule.get("rule_type") == "dti_requirements" and factors["loan_program"] in rule.get("loan_programs", []):
             try:
                 dti_limits = json.loads(rule.get("dti_limits", "{}"))
-                program_limits = dti_limits.get(factors["loan_program"], {"front_end": 28, "back_end": 43})
                 
-                front_limit = program_limits.get("front_end", 28)
-                back_limit = program_limits.get("back_end", 43)
+                # Use Neo4j rules with industry-standard fallbacks
+                program_limits = dti_limits.get(factors["loan_program"], {})
+                
+                # Fallback to industry standards only if Neo4j data is missing
+                front_limit = program_limits.get("front_end", _get_fallback_dti_limits(factors["loan_program"])["front_end"])
+                back_limit = program_limits.get("back_end", _get_fallback_dti_limits(factors["loan_program"])["back_end"])
                 
                 if factors["front_end_dti"] <= front_limit and factors["back_end_dti"] <= back_limit:
                     analysis["dti_acceptable"] = True
@@ -231,8 +337,9 @@ def _analyze_approval_factors(factors: Dict[str, Any], rules: List[Dict]) -> Dic
             except:
                 continue
     
-    # LTV analysis
-    max_ltv = _get_max_ltv_for_program(factors["loan_program"], factors["property_type"])
+    # LTV analysis using Neo4j rules with fallbacks
+    max_ltv = _get_max_ltv_from_rules(factors["loan_program"], factors["property_type"], rules)
+    
     if factors["ltv_ratio"] <= max_ltv:
         analysis["ltv_acceptable"] = True
         analysis["positive_factors"].append(f"LTV within {max_ltv}% guideline")
@@ -251,6 +358,17 @@ def _analyze_approval_factors(factors: Dict[str, Any], rules: List[Dict]) -> Dic
     else:
         analysis["risk_factors"].append("Income stability concerns")
     
+    # Property type specific analysis from Neo4j rules
+    property_restrictions = _check_property_type_restrictions(factors["property_type"], factors["loan_program"], rules)
+    
+    if not property_restrictions["program_available"]:
+        analysis["risk_factors"].append(f"{factors['loan_program'].upper()} not available for {factors['property_type']}")
+        analysis["overall_score"] -= 50  # Major issue
+    else:
+        # Add any special requirements found in Neo4j
+        for requirement in property_restrictions.get("special_requirements", []):
+            analysis["positive_factors"].append(f"Property requirement: {requirement}")
+    
     # Employment analysis
     if factors["employment_years"] >= 2.0:
         analysis["employment_acceptable"] = True
@@ -261,6 +379,22 @@ def _analyze_approval_factors(factors: Dict[str, Any], rules: List[Dict]) -> Dic
         analysis["overall_score"] += 8
     else:
         analysis["risk_factors"].append("Limited employment history")
+    
+    # QM (Qualified Mortgage) Compliance Check
+    qm_compliant = True
+    qm_issues = []
+    
+    # QM Rule: 43% maximum back-end DTI
+    if factors["back_end_dti"] > 43.0:
+        qm_compliant = False
+        qm_issues.append(f"Back-end DTI {factors['back_end_dti']:.1f}% exceeds QM limit of 43%")
+    
+    if qm_compliant:
+        analysis["positive_factors"].append("QM (Qualified Mortgage) compliant")
+        analysis["overall_score"] += 5
+    else:
+        analysis["risk_factors"].extend(qm_issues)
+        analysis["risk_factors"].append("Non-QM loan - additional documentation required")
     
     return analysis
 
@@ -439,18 +573,6 @@ def _generate_approval_conditions(decision: Dict[str, Any], factors: Dict[str, A
     return conditions
 
 
-def _get_max_ltv_for_program(loan_program: str, property_type: str) -> float:
-    """Get maximum LTV ratio for loan program and property type."""
-    
-    ltv_limits = {
-        "conventional": {"primary_residence": 97, "investment": 75, "vacation_home": 90},
-        "fha": {"primary_residence": 96.5, "investment": 85, "vacation_home": 96.5},
-        "va": {"primary_residence": 100, "investment": 90, "vacation_home": 100},
-        "usda": {"primary_residence": 100, "investment": 80, "vacation_home": 90},
-        "jumbo": {"primary_residence": 90, "investment": 70, "vacation_home": 80}
-    }
-    
-    return ltv_limits.get(loan_program, {}).get(property_type, 80)
 
 
 def _format_underwriting_decision_report(

@@ -36,24 +36,32 @@ def parse_neo4j_rule(rule_dict: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @tool
-def track_application_status(status_request: str) -> str:
+def track_application_status(tool_input: str) -> str:
     """
     Track and manage application status using Neo4j application intake rules.
     
     This tool provides comprehensive application status tracking, updates, and history
     throughout the mortgage application workflow process.
     
-    Provide status request information in natural language, such as:
-    "Check status of application APP_20250926_090605_JOH"
-    "Update application APP_123 status to APPROVED with notes: all documents received"
-    "Track application APP_456, current status RECEIVED, action check_status"
-    "Get history for application APP_789"
+    Args:
+        tool_input: Status tracking request in natural language format
+        
+    Example:
+        "Check status of application APP_20250926_090605_JOH" or "Update application APP_123 status to APPROVED with notes: all documents received"
+    
+    Returns:
+        String containing detailed application status information and tracking history
     """
     
     try:
-        # Parse status request string
+        # Use standardized parsing first, then custom parsing for tool-specific data
+        from agents.shared.input_parser import parse_mortgage_application
         import re
-        request = status_request.lower()
+        
+        parsed_data = parse_mortgage_application(tool_input)
+        
+        # Parse status request string
+        request = tool_input.lower()
         
         # Extract application ID
         app_id_match = re.search(r'app(?:lication)?\s*([a-z0-9_]+)', request)
@@ -85,9 +93,17 @@ def track_application_status(status_request: str) -> str:
         estimated_completion = None
         issues_identified = []
         resolution_required = False
-        # Initialize Neo4j connection
-        initialize_connection()
+        # Initialize Neo4j connection with robust error handling
+        if not initialize_connection():
+            return "❌ Failed to connect to Neo4j database. Please try again later."
+        
         connection = get_neo4j_connection()
+        
+        # ROBUST CONNECTION CHECK: Handle server environment issues
+        if connection.driver is None:
+            # Force reconnection if driver is None
+            if not connection.connect():
+                return "❌ Failed to establish Neo4j connection. Please restart the server."
         
         with connection.driver.session(database=connection.database) as session:
             # Get status management rules
@@ -430,7 +446,7 @@ def track_application_status(status_request: str) -> str:
         
     except Exception as e:
         logger.error(f"Error during status tracking: {e}")
-        return f" Error during status tracking: {str(e)}"
+        return f"❌ Error during status tracking: {str(e)}"
 
 
 def validate_tool() -> bool:

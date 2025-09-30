@@ -178,43 +178,58 @@ def parse_property_condition_info(condition_info: str) -> Dict[str, Any]:
 
 
 @tool
-def assess_property_condition(
-    condition_info: str
-) -> str:
+def assess_property_condition(tool_input: str) -> str:
     """
     Assess property condition for lending purposes using Neo4j appraisal rules.
     
     This tool evaluates property condition against lending standards and identifies
     any issues that may affect loan approval or require repairs.
     
-    Provide property condition information in natural language, such as:
-    "Property at 123 Oak St, built in 2010, roof good condition, exterior fair, interior excellent, heating system good, electrical updated, plumbing good, foundation solid"
-    "Single family home built 2015, good roof, excellent exterior, fair interior, HVAC system is good condition, electrical system updated, plumbing good condition, foundation good"
-    "Condo needs some repairs - roof fair condition, exterior good, interior excellent, heating system needs repair, electrical good, plumbing good"
+    Args:
+        tool_input: Property condition information in natural language format
+        
+    Example:
+        "Property at 123 Oak St, built in 2010, roof good condition, exterior fair, interior excellent, heating system good, electrical updated, plumbing good, foundation solid"
+    
+    Returns:
+        String containing detailed property condition assessment report
     """
     
-    # Parse the natural language input
-    parsed_info = parse_property_condition_info(condition_info)
-    
-    # Extract all the parameters
-    property_address = parsed_info["property_address"]
-    property_type = parsed_info["property_type"]
-    year_built = parsed_info["year_built"]
-    roof_condition = parsed_info["roof_condition"]
-    exterior_condition = parsed_info["exterior_condition"]
-    interior_condition = parsed_info["interior_condition"]
-    heating_system = parsed_info["heating_system"]
-    electrical_system = parsed_info["electrical_system"]
-    plumbing_system = parsed_info["plumbing_system"]
-    foundation_condition = parsed_info["foundation_condition"]
-    safety_issues = parsed_info["safety_issues"]
-    repair_items = parsed_info["repair_items"]
-    loan_program = parsed_info["loan_program"]
-        
     try:
-        # Initialize Neo4j connection
-        initialize_connection()
+        # Use standardized parsing first, then custom parsing for tool-specific data
+        from agents.shared.input_parser import parse_mortgage_application
+        
+        parsed_data = parse_mortgage_application(tool_input)
+        
+        # Parse the natural language input with custom logic for condition-specific details  
+        parsed_info = parse_property_condition_info(tool_input)
+        
+        # Extract all the parameters
+        property_address = parsed_info["property_address"]
+        property_type = parsed_info["property_type"]
+        year_built = parsed_info["year_built"]
+        roof_condition = parsed_info["roof_condition"]
+        exterior_condition = parsed_info["exterior_condition"]
+        interior_condition = parsed_info["interior_condition"]
+        heating_system = parsed_info["heating_system"]
+        electrical_system = parsed_info["electrical_system"]
+        plumbing_system = parsed_info["plumbing_system"]
+        foundation_condition = parsed_info["foundation_condition"]
+        safety_issues = parsed_info["safety_issues"]
+        repair_items = parsed_info["repair_items"]
+        loan_program = parsed_info["loan_program"]
+        
+        # Initialize Neo4j connection with robust error handling
+        if not initialize_connection():
+            return "❌ Failed to connect to Neo4j database. Please try again later."
+        
         connection = get_neo4j_connection()
+        
+        # ROBUST CONNECTION CHECK: Handle server environment issues
+        if connection.driver is None:
+            # Force reconnection if driver is None
+            if not connection.connect():
+                return "❌ Failed to establish Neo4j connection. Please restart the server."
         
         with connection.driver.session(database=connection.database) as session:
             # Get property condition rules
@@ -449,7 +464,7 @@ def assess_property_condition(
         
     except Exception as e:
         logger.error(f"Error during property condition assessment: {e}")
-        return f" Error during property condition assessment: {str(e)}"
+        return f"❌ Error during property condition assessment: {str(e)}"
 
 
 def validate_tool() -> bool:

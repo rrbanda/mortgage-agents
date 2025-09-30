@@ -132,39 +132,55 @@ def parse_property_info(property_info: str) -> Dict[str, Any]:
 
 
 @tool
-def find_comparable_sales(
-    property_info: str
-) -> str:
+def find_comparable_sales(tool_input: str) -> str:
     """
     Find and analyze comparable sales for property valuation using Neo4j appraisal rules.
     
     This tool searches for appropriate comparable sales and provides adjustment analysis
     based on property appraisal rules and industry standards.
     
-    Provide property information in natural language, such as:
-    "I found a house at 123 Oak Street, Austin, TX. It's listed for $450,000. 3 bedrooms, 2.5 baths, 2000 sq ft, built in 2010"
-    "Property at 456 Main St, Dallas TX - 4 bed, 3 bath single family home, 2500 sqft, built 2015, on 0.3 acres"
-    "Condo at 789 Pine Ave - 2 bedrooms, 2 bathrooms, 1200 square feet, year built 2008"
+    Args:
+        tool_input: Property information in natural language format
+        
+    Example:
+        "I found a house at 123 Oak Street, Austin, TX. It's listed for $450,000. 3 bedrooms, 2.5 baths, 2000 sq ft, built in 2010"
+    
+    Returns:
+        String containing comprehensive comparable sales analysis report
     """
     
-    # Parse the natural language input
-    parsed_info = parse_property_info(property_info)
-    
-    # Extract all the parameters
-    subject_property_address = parsed_info["subject_property_address"]
-    property_type = parsed_info["property_type"]
-    gross_living_area = parsed_info["gross_living_area"]
-    bedrooms = parsed_info["bedrooms"]
-    bathrooms = parsed_info["bathrooms"]
-    year_built = parsed_info["year_built"]
-    lot_size = parsed_info["lot_size"]
-    search_radius_miles = parsed_info["search_radius_miles"]
-    max_age_months = parsed_info["max_age_months"]
-    
     try:
-        # Initialize Neo4j connection
-        initialize_connection()
+        # Use standardized parsing first, then custom parsing for tool-specific data
+        from agents.shared.input_parser import parse_mortgage_application
+        
+        # Parse using standardized parser first
+        parsed_data = parse_mortgage_application(tool_input)
+        
+        # Parse the natural language input with custom logic for property-specific details
+        parsed_info = parse_property_info(tool_input)
+        
+        # Extract all the parameters
+        subject_property_address = parsed_info["subject_property_address"]
+        property_type = parsed_info["property_type"]
+        gross_living_area = parsed_info["gross_living_area"]
+        bedrooms = parsed_info["bedrooms"]
+        bathrooms = parsed_info["bathrooms"]
+        year_built = parsed_info["year_built"]
+        lot_size = parsed_info["lot_size"]
+        search_radius_miles = parsed_info["search_radius_miles"]
+        max_age_months = parsed_info["max_age_months"]
+        
+        # Initialize Neo4j connection with robust error handling
+        if not initialize_connection():
+            return "❌ Failed to connect to Neo4j database. Please try again later."
+        
         connection = get_neo4j_connection()
+        
+        # ROBUST CONNECTION CHECK: Handle server environment issues
+        if connection.driver is None:
+            # Force reconnection if driver is None
+            if not connection.connect():
+                return "❌ Failed to establish Neo4j connection. Please restart the server."
         
         with connection.driver.session(database=connection.database) as session:
             # Get property type specific comparable requirements
@@ -384,7 +400,7 @@ def find_comparable_sales(
         
     except Exception as e:
         logger.error(f"Error during comparable sales analysis: {e}")
-        return f" Error during comparable sales analysis: {str(e)}"
+        return f"❌ Error during comparable sales analysis: {str(e)}"
 
 
 def validate_tool() -> bool:
@@ -392,7 +408,7 @@ def validate_tool() -> bool:
     try:
         # Test with sample natural language data
         result = find_comparable_sales.invoke({
-            "property_info": "Property at 123 Main St, Anytown, CA 90210 - single family home, 3 bedrooms, 2.5 bathrooms, 2000 sq ft, built in 2010, 0.25 acres"
+            "tool_input": "Property at 123 Main St, Anytown, CA 90210 - single family home, 3 bedrooms, 2.5 bathrooms, 2000 sq ft, built in 2010, 0.25 acres"
         })
         return "COMPARABLE SALES ANALYSIS REPORT" in result and "VALUE INDICATION" in result
     except Exception as e:

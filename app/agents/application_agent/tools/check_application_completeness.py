@@ -60,39 +60,81 @@ class ApplicationCompletenessRequest(BaseModel):
     credit_report_authorized: bool = Field(default=False, description="Credit report authorization signed")
 
 
-@tool(args_schema=ApplicationCompletenessRequest)
-def check_application_completeness(
-    application_id: str = "TEMP_CHECK",
-    loan_purpose: str = "purchase", 
-    employment_type: str = "w2",
-    has_co_borrower: bool = False,
-    property_type: str = "single_family_detached",
-    occupancy_type: str = "primary_residence",
-    personal_info_complete: bool = True,
-    address_info_complete: bool = True,
-    employment_info_complete: bool = True,
-    income_documentation: bool = False,
-    asset_documentation: bool = False,
-    debt_documentation: bool = False,
-    property_documentation: bool = False,
-    insurance_documentation: bool = False,
-    tax_returns_provided: bool = False,
-    bank_statements_provided: bool = False,
-    paystubs_provided: bool = False,
-    w2_forms_provided: bool = False,
-    credit_report_authorized: bool = False
-) -> str:
+@tool
+def check_application_completeness(tool_input: str) -> str:
     """
     Check application completeness against requirements using Neo4j application intake rules.
     
     This tool verifies that all required documentation and information has been
     provided based on loan type, employment type, and property characteristics.
+    
+    Args:
+        tool_input: Application completeness check request in natural language format
+        
+    Example:
+        "Application: APP_123, Loan: purchase, Employment: w2, Co-borrower: no, Property: single_family, Occupancy: primary, Documentation: paystubs provided, bank statements missing"
+    
+    Returns:
+        String containing detailed application completeness analysis and missing requirements
     """
     
     try:
-        # Initialize Neo4j connection
-        initialize_connection()
+        # Use standardized parsing first, then custom parsing for tool-specific data
+        from agents.shared.input_parser import parse_mortgage_application
+        import re
+        
+        parsed_data = parse_mortgage_application(tool_input)
+        input_lower = tool_input.lower()
+        
+        # Extract basic parameters with defaults
+        app_match = re.search(r'(?:application|app):\s*([^,\s]+)', input_lower)
+        application_id = app_match.group(1).strip() if app_match else "TEMP_CHECK"
+        
+        loan_match = re.search(r'loan:\s*([^,\s]+)', input_lower)
+        loan_purpose = loan_match.group(1).strip() if loan_match else "purchase"
+        
+        emp_match = re.search(r'employment:\s*([^,\s]+)', input_lower)
+        employment_type = emp_match.group(1).strip() if emp_match else "w2"
+        
+        # Boolean flags with defaults (False for missing items, True for provided)
+        has_co_borrower = "co-borrower: yes" in input_lower or "co-borrower: true" in input_lower
+        
+        prop_match = re.search(r'property:\s*([^,\s]+)', input_lower)
+        property_type = prop_match.group(1).strip() if prop_match else "single_family_detached"
+        
+        occ_match = re.search(r'occupancy:\s*([^,\s]+)', input_lower)
+        occupancy_type = occ_match.group(1).strip() if occ_match else "primary_residence"
+        
+        # Documentation status - assume complete unless specifically mentioned as missing
+        personal_info_complete = "personal info missing" not in input_lower
+        address_info_complete = "address missing" not in input_lower
+        employment_info_complete = "employment missing" not in input_lower
+        
+        # Look for specific documentation mentions
+        income_documentation = "income provided" in input_lower or "income documentation" in input_lower
+        asset_documentation = "assets provided" in input_lower or "asset documentation" in input_lower
+        debt_documentation = "debt provided" in input_lower or "debt documentation" in input_lower
+        property_documentation = "property docs provided" in input_lower
+        insurance_documentation = "insurance provided" in input_lower
+        
+        # Specific document types
+        tax_returns_provided = "tax returns provided" in input_lower
+        bank_statements_provided = "bank statements provided" in input_lower
+        paystubs_provided = "paystubs provided" in input_lower
+        w2_forms_provided = "w2 provided" in input_lower or "w2 forms provided" in input_lower
+        credit_report_authorized = "credit report authorized" in input_lower
+        
+        # Initialize Neo4j connection with robust error handling
+        if not initialize_connection():
+            return "❌ Failed to connect to Neo4j database. Please try again later."
+        
         connection = get_neo4j_connection()
+        
+        # ROBUST CONNECTION CHECK: Handle server environment issues
+        if connection.driver is None:
+            # Force reconnection if driver is None
+            if not connection.connect():
+                return "❌ Failed to establish Neo4j connection. Please restart the server."
         
         with connection.driver.session(database=connection.database) as session:
             # Get completeness validation rules
@@ -331,7 +373,7 @@ def check_application_completeness(
         
     except Exception as e:
         logger.error(f"Error during completeness check: {e}")
-        return f" Error during completeness check: {str(e)}"
+        return f"❌ Error during completeness check: {str(e)}"
 
 
 def validate_tool() -> bool:

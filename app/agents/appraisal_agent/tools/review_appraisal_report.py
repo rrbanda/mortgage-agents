@@ -217,44 +217,60 @@ def parse_appraisal_report_info(report_info: str) -> Dict[str, Any]:
 
 
 @tool
-def review_appraisal_report(
-    report_info: str
-) -> str:
+def review_appraisal_report(tool_input: str) -> str:
     """
     Review and validate appraisal reports for compliance using Neo4j appraisal rules.
     
     This tool evaluates appraisal reports against industry standards and loan program
     requirements to ensure compliance and accuracy.
     
-    Provide appraisal report information in natural language, such as:
-    "Property at 123 Oak St appraised for $450,000, loan amount $350,000, sales comparison approach, used 3 comparables, highest comp $465,000, lowest $435,000, gross adjustments 12%, net adjustments 5%, good condition"
-    "Appraisal report dated 2024-01-15 for single family home, appraised value $420,000, FHA loan $378,000, appraiser license #12345-TX, condition excellent, 4 comparables used"
+    Args:
+        tool_input: Appraisal report information in natural language format
+        
+    Example:
+        "Property at 123 Oak St appraised for $450,000, loan amount $350,000, sales comparison approach, used 3 comparables, highest comp $465,000, lowest $435,000, gross adjustments 12%, net adjustments 5%, good condition"
+    
+    Returns:
+        String containing detailed appraisal report review and compliance analysis
     """
     
-    # Parse the natural language input
-    parsed_info = parse_appraisal_report_info(report_info)
-    
-    # Extract all the parameters
-    property_address = parsed_info["property_address"]
-    appraised_value = parsed_info["appraised_value"]
-    loan_amount = parsed_info["loan_amount"]
-    property_type = parsed_info["property_type"]
-    appraisal_date = parsed_info["appraisal_date"]
-    appraiser_license = parsed_info["appraiser_license"]
-    appraisal_approach = parsed_info["appraisal_approach"]
-    comparable_count = parsed_info["comparable_count"]
-    highest_comparable = parsed_info["highest_comparable"]
-    lowest_comparable = parsed_info["lowest_comparable"]
-    gross_adjustments_pct = parsed_info["gross_adjustments_pct"]
-    net_adjustments_pct = parsed_info["net_adjustments_pct"]
-    condition_rating = parsed_info["condition_rating"]
-    loan_program = parsed_info["loan_program"]
-    compliance_issues = parsed_info["compliance_issues"]
-        
     try:
-        # Initialize Neo4j connection
-        initialize_connection()
+        # Use standardized parsing first, then custom parsing for tool-specific data
+        from agents.shared.input_parser import parse_mortgage_application
+        
+        parsed_data = parse_mortgage_application(tool_input)
+        
+        # Parse the natural language input with custom logic for appraisal-specific details
+        parsed_info = parse_appraisal_report_info(tool_input)
+        
+        # Extract all the parameters
+        property_address = parsed_info["property_address"]
+        appraised_value = parsed_info["appraised_value"]
+        loan_amount = parsed_info["loan_amount"]
+        property_type = parsed_info["property_type"]
+        appraisal_date = parsed_info["appraisal_date"]
+        appraiser_license = parsed_info["appraiser_license"]
+        appraisal_approach = parsed_info["appraisal_approach"]
+        comparable_count = parsed_info["comparable_count"]
+        highest_comparable = parsed_info["highest_comparable"]
+        lowest_comparable = parsed_info["lowest_comparable"]
+        gross_adjustments_pct = parsed_info["gross_adjustments_pct"]
+        net_adjustments_pct = parsed_info["net_adjustments_pct"]
+        condition_rating = parsed_info["condition_rating"]
+        loan_program = parsed_info["loan_program"]
+        compliance_issues = parsed_info["compliance_issues"]
+        
+        # Initialize Neo4j connection with robust error handling
+        if not initialize_connection():
+            return "❌ Failed to connect to Neo4j database. Please try again later."
+        
         connection = get_neo4j_connection()
+        
+        # ROBUST CONNECTION CHECK: Handle server environment issues
+        if connection.driver is None:
+            # Force reconnection if driver is None
+            if not connection.connect():
+                return "❌ Failed to establish Neo4j connection. Please restart the server."
         
         # Calculate LTV
         ltv = (loan_amount / appraised_value * 100) if appraised_value > 0 else 0
@@ -355,27 +371,27 @@ def review_appraisal_report(
             compliance_status.append(f" Net Adjustments: {net_adjustments_pct:.1f}% (exceeds {net_limit:.0f}% limit)")
             warnings.append(f"Net adjustments near or exceed recommended limits")
         
-        # 3. LTV Compliance
+        # 3. LTV Compliance using basic industry standards
         if loan_program.lower() == 'conventional':
             if ltv <= 80:
-                compliance_status.append(f" LTV: {ltv:.1f}% (conventional conforming)")
+                compliance_status.append(f"✅ LTV: {ltv:.1f}% (conventional conforming)")
             elif ltv <= 97:
                 compliance_status.append(f"⚠️ LTV: {ltv:.1f}% (requires mortgage insurance)")
                 warnings.append("High LTV loan - verify mortgage insurance requirements")
             else:
-                compliance_status.append(f" LTV: {ltv:.1f}% (exceeds conventional limits)")
+                compliance_status.append(f"❌ LTV: {ltv:.1f}% (exceeds conventional limits)")
                 critical_issues.append("LTV exceeds conventional loan limits")
         elif loan_program.lower() == 'fha':
             if ltv <= 96.5:
-                compliance_status.append(f" LTV: {ltv:.1f}% (within FHA limits)")
+                compliance_status.append(f"✅ LTV: {ltv:.1f}% (within FHA limits)")
             else:
-                compliance_status.append(f" LTV: {ltv:.1f}% (exceeds FHA 96.5% limit)")
+                compliance_status.append(f"❌ LTV: {ltv:.1f}% (exceeds FHA 96.5% limit)")
                 critical_issues.append("LTV exceeds FHA limits")
         elif loan_program.lower() == 'va':
             if ltv <= 100:
-                compliance_status.append(f" LTV: {ltv:.1f}% (within VA limits)")
+                compliance_status.append(f"✅ LTV: {ltv:.1f}% (within VA limits)")
             else:
-                compliance_status.append(f" LTV: {ltv:.1f}% (exceeds VA 100% limit)")
+                compliance_status.append(f"❌ LTV: {ltv:.1f}% (exceeds VA 100% limit)")
                 critical_issues.append("LTV exceeds VA limits")
         
         # 4. Appraiser Licensing
@@ -504,7 +520,7 @@ def review_appraisal_report(
         
     except Exception as e:
         logger.error(f"Error during appraisal report review: {e}")
-        return f" Error during appraisal report review: {str(e)}"
+        return f"❌ Error during appraisal report review: {str(e)}"
 
 
 def validate_tool() -> bool:

@@ -13,10 +13,14 @@ Purpose:
 """
 
 import json
+import logging
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 from pydantic import BaseModel, Field
 from langchain_core.tools import tool
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 try:
     from utils import get_neo4j_connection, initialize_connection
@@ -36,8 +40,8 @@ class LoanProgramQuery(BaseModel):
     )
 
 
-@tool("explain_loan_programs", args_schema=LoanProgramQuery, parse_docstring=True)
-def explain_loan_programs(programs: str, comparison_focus: Optional[str] = None) -> Dict[str, Any]:
+@tool
+def explain_loan_programs(tool_input: str) -> str:
     """
     Explain and compare mortgage loan programs using real data from Neo4j.
     
@@ -46,32 +50,50 @@ def explain_loan_programs(programs: str, comparison_focus: Optional[str] = None)
     and ideal use cases.
     
     Args:
-        programs: Loan programs to explain (FHA, VA, USDA, Conventional, Jumbo, or 'all')
-        comparison_focus: Optional focus area for comparison (down_payment, credit_requirements, benefits)
+        tool_input: Loan programs to explain in natural language format
+        
+    Example:
+        "FHA, VA, USDA" or "all programs" or "Conventional vs FHA"
         
     Returns:
-        Dict containing detailed loan program information from Neo4j including:
-        - program_details: comprehensive information for each program
-        - comparison_summary: side-by-side comparison when multiple programs
-        - recommendations: guidance on which programs might be suitable
-        - borrower_profiles: matching borrower profiles from knowledge graph
+        String containing detailed loan program explanations and comparisons
     """
     
-    # Initialize Neo4j connection
+    # Initialize Neo4j connection with robust error handling
     if not initialize_connection():
-        return {
-            "error": "Failed to connect to Neo4j database",
-            "success": False
-        }
+        return "❌ Error: Failed to connect to mortgage loan program database. Please try again later."
     
     connection = get_neo4j_connection()
     
+    # ROBUST CONNECTION CHECK: Handle server environment issues
+    if connection.driver is None:
+        # Force reconnection if driver is None
+        if not connection.connect():
+            return "❌ Failed to establish Neo4j connection. Please restart the server."
+    
     try:
-        # Parse requested programs
-        if programs.lower() == "all":
+        # Parse requested programs from tool_input
+        tool_input_lower = tool_input.lower()
+        
+        if tool_input_lower in ["all", "all programs"] or "all programs" in tool_input_lower:
             program_names = None  # Will get all programs
         else:
-            program_names = [p.strip().upper() for p in programs.split(',')]
+            # Look for specific program names in the input
+            known_programs = ["fha", "conventional", "va", "usda", "jumbo"]
+            found_programs = []
+            
+            for program in known_programs:
+                if program in tool_input_lower:
+                    found_programs.append(program.upper())
+            
+            if found_programs:
+                program_names = found_programs
+            else:
+                # If no specific programs mentioned, show all programs
+                program_names = None
+        
+        # Set default comparison focus (could be extracted from tool_input in the future)
+        comparison_focus = None
         
         # Query loan programs from Neo4j using session
         with connection.driver.session(database=connection.database) as session:
@@ -137,11 +159,7 @@ def explain_loan_programs(programs: str, comparison_focus: Optional[str] = None)
         
         if not program_details:
             available_programs = _get_available_programs(connection)
-            return {
-                "error": f"No loan programs found for: {programs}",
-                "available_programs": available_programs,
-                "success": False
-            }
+            return f"❌ No loan programs found for: {tool_input}. Available programs: {', '.join(available_programs)}"
         
         # Create comparison summary if multiple programs
         comparison_summary = None
@@ -154,25 +172,83 @@ def explain_loan_programs(programs: str, comparison_focus: Optional[str] = None)
         # Get borrower profile insights
         borrower_insights = _get_borrower_profile_insights(connection, all_programs)
         
-        return {
-            "query": {
-                "programs_requested": all_programs,
-                "comparison_focus": comparison_focus,
-                "timestamp": datetime.now().isoformat()
-            },
-            "program_details": program_details,
-            "comparison_summary": comparison_summary,
-            "recommendations": recommendations,
-            "borrower_insights": borrower_insights,
-            "key_takeaways": _generate_key_takeaways(program_details),
-            "success": True
-        }
+        # Format the output as a comprehensive string
+        output_parts = []
+        output_parts.append("📚 **LOAN PROGRAM EXPLANATION**")
+        output_parts.append("=" * 50)
+        output_parts.append(f"**Programs Requested:** {', '.join(all_programs)}")
+        output_parts.append(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        output_parts.append("")
+
+        # Program Details
+        for program_name, details in program_details.items():
+            output_parts.append(f"## 🏦 {program_name.upper()} LOAN PROGRAM")
+            output_parts.append(f"**Description:** {details.get('description', 'Standard loan program')}")
+            
+            # Benefits
+            benefits = details.get('benefits', [])
+            if benefits and isinstance(benefits, list):
+                output_parts.append("**Key Benefits:**")
+                for benefit in benefits[:5]:
+                    output_parts.append(f"• {benefit}")
+            
+            # Requirements
+            requirements = details.get('requirements', [])
+            if requirements and isinstance(requirements, list):
+                output_parts.append("**Requirements:**")
+                for req in requirements[:5]:
+                    if isinstance(req, dict):
+                        req_name = req.get('name', '').replace('_', ' ').title()
+                        req_desc = req.get('description', '')
+                        output_parts.append(f"• {req_name}: {req_desc}")
+            
+            # Ideal borrowers
+            ideal_for = details.get('ideal_for', [])
+            if ideal_for and isinstance(ideal_for, list):
+                output_parts.append("**Ideal For:**")
+                for borrower in ideal_for[:3]:
+                    if isinstance(borrower, dict):
+                        profile_name = borrower.get('profile_name', '').replace('_', ' ').title()
+                        output_parts.append(f"• {profile_name}")
+            
+            output_parts.append("")
+
+        # Comparison Summary
+        if comparison_summary:
+            output_parts.append("📊 **PROGRAM COMPARISON**")
+            for key, value in comparison_summary.items():
+                key_formatted = key.replace('_', ' ').title()
+                output_parts.append(f"**{key_formatted}:** {value}")
+            output_parts.append("")
+
+        # Recommendations
+        if recommendations and isinstance(recommendations, list):
+            output_parts.append("💡 **RECOMMENDATIONS**")
+            for rec in recommendations[:5]:
+                output_parts.append(f"• {rec}")
+            output_parts.append("")
+
+        # Key Takeaways
+        key_takeaways = _generate_key_takeaways(program_details)
+        if key_takeaways:
+            output_parts.append("🎯 **KEY TAKEAWAYS**")
+            for takeaway in key_takeaways:
+                output_parts.append(f"• {takeaway}")
+            output_parts.append("")
+
+        # Borrower Insights
+        if borrower_insights and isinstance(borrower_insights, dict):
+            output_parts.append("👤 **BORROWER PROFILE INSIGHTS**")
+            insights = borrower_insights.get('insights', [])
+            if isinstance(insights, list):
+                for insight in insights[:3]:
+                    output_parts.append(f"• {insight}")
+
+        return "\n".join(output_parts)
         
     except Exception as e:
-        return {
-            "error": f"Error querying Neo4j: {str(e)}",
-            "success": False
-        }
+        logger.error(f"Error explaining loan programs: {e}")
+        return f"❌ Error explaining loan programs: {str(e)}"
     finally:
         connection.disconnect()
 

@@ -72,16 +72,72 @@ class StandardInputParser:
         return None
     
     @staticmethod
+    def _parse_income_smart(text: str) -> Optional[float]:
+        """Smart income parsing that distinguishes annual vs monthly and normalizes to monthly"""
+        text_lower = text.lower()
+        
+        # Explicit annual income patterns - convert to monthly
+        annual_patterns = [
+            r'(?:annual|yearly)\s*income\s*(?:is|of|:)?\s*\$?([0-9,]+)',
+            r'(?:making|earn|make)\s*\$?([0-9,]+)(?:\s*/?\s*year|/year|/yr|\s*annually|\s*per\s*year)',
+            r'salary\s*(?:is|of|:)?\s*\$?([0-9,]+)(?:\s*/?\s*year|/year|/yr|\s*annually|\s*per\s*year)?',
+            r'income\s*\$?([0-9,]+)(?:\s*/?\s*year|/year|/yr|\s*annually|\s*per\s*year)',
+        ]
+        
+        for pattern in annual_patterns:
+            match = re.search(pattern, text_lower)
+            if match:
+                try:
+                    annual_amount = float(match.group(1).replace(',', ''))
+                    return annual_amount / 12  # Convert to monthly
+                except ValueError:
+                    continue
+        
+        # Explicit monthly income patterns - return as-is
+        monthly_patterns = [
+            r'monthly\s*income\s*(?:is|of|:)?\s*\$?([0-9,]+)',
+            r'(?:making|earn|income)\s*\$?([0-9,]+)(?:\s*/?\s*month|/month|/mo|\s*monthly|\s*per\s*month)',
+        ]
+        
+        for pattern in monthly_patterns:
+            match = re.search(pattern, text_lower)
+            if match:
+                try:
+                    return float(match.group(1).replace(',', ''))
+                except ValueError:
+                    continue
+        
+        # Ambiguous income patterns - assume annual and convert to monthly
+        # This handles cases like "Income: 95000" which are typically annual salaries
+        ambiguous_patterns = [
+            r'income\s*(?:is|of|:)?\s*\$?([0-9,]+)',
+            r'(?:making|earn)\s*\$?([0-9,]+)(?!\s*/?\s*(?:month|mo|monthly))',
+        ]
+        
+        for pattern in ambiguous_patterns:
+            match = re.search(pattern, text_lower)
+            if match:
+                try:
+                    amount = float(match.group(1).replace(',', ''))
+                    # Heuristic: if amount > 15000, likely annual; otherwise monthly
+                    if amount > 15000:
+                        return amount / 12  # Convert annual to monthly
+                    else:
+                        return amount  # Assume monthly
+                except ValueError:
+                    continue
+        
+        return None
+    
+    @staticmethod
     def parse_currency(text: str, field_name: str) -> Optional[float]:
         """Parse currency amounts - handles multiple formats"""
-        # Create field-specific patterns
+        # Special handling for income to distinguish annual vs monthly
+        if field_name == "income":
+            return StandardInputParser._parse_income_smart(text)
+        
+        # Create field-specific patterns for non-income fields
         field_patterns = {
-            "income": [
-                r'(?:monthly\s*)?income\s*(?:is|of|:)?\s*\$?([0-9,]+)(?:\s*/?\s*month)?',
-                r'(?:annual|yearly)\s*income\s*(?:is|of|:)?\s*\$?([0-9,]+)',
-                r'salary\s*(?:is|of|:)?\s*\$?([0-9,]+)',
-                r'income[:\s]+(\d+)',
-            ],
             "loan": [
                 r'loan\s*(?:amount|for)?\s*(?:is|of|:)?\s*\$?([0-9,]+)',
                 r'loan[:\s]+(\d+)',
@@ -294,7 +350,7 @@ class StandardInputParser:
 
 # Convenience functions for common use cases
 def parse_mortgage_application(text: str) -> Dict[str, Any]:
-    """Parse complete mortgage application text"""
+    """Parse complete mortgage application text with smart calculations"""
     parser = StandardInputParser()
     
     result = {}
@@ -310,7 +366,42 @@ def parse_mortgage_application(text: str) -> Dict[str, Any]:
     result["monthly_debts"] = parser.parse_currency(text, "debts")
     result["liquid_assets"] = parser.parse_currency(text, "assets")
     
+    # Calculate derived fields (safe calculation)
+    if result.get("monthly_income"):
+        try:
+            result["annual_income"] = result["monthly_income"] * 12
+        except (TypeError, ValueError):
+            result["annual_income"] = None
+    
+    # Calculate down payment percentage (safe calculation)
+    if result.get("down_payment") and result.get("property_value"):
+        try:
+            result["down_payment_percent"] = result["down_payment"] / result["property_value"]
+        except (TypeError, ZeroDivisionError):
+            result["down_payment_percent"] = None
+    
+    # Calculate DTI ratios (if we have housing payment info)
+    # Note: Housing payment would need to be parsed from specific input
+    # For now, we'll add a placeholder for tools to calculate
+    result["needs_dti_calculation"] = True
+    
     return result
+
+
+def calculate_dti_ratios(monthly_income: float, housing_payment: float, monthly_debts: float = 0) -> Dict[str, float]:
+    """Calculate front-end and back-end DTI ratios"""
+    if monthly_income <= 0:
+        return {"front_end_dti": 0.0, "back_end_dti": 0.0}
+    
+    front_end_dti = (housing_payment / monthly_income) * 100
+    back_end_dti = ((housing_payment + monthly_debts) / monthly_income) * 100
+    
+    return {
+        "front_end_dti": round(front_end_dti, 1),
+        "back_end_dti": round(back_end_dti, 1),
+        "front_end_ratio": round(front_end_dti / 100, 3),
+        "back_end_ratio": round(back_end_dti / 100, 3)
+    }
 
 
 def validate_parsed_data(data: Dict[str, Any]) -> Dict[str, Any]:

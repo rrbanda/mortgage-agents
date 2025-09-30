@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 @tool
-def analyze_property_value(property_info: str) -> str:
+def analyze_property_value(tool_input: str) -> str:
     """
     Analyze property value using multiple appraisal approaches based on Neo4j rules.
     
@@ -36,8 +36,9 @@ def analyze_property_value(property_info: str) -> str:
         # Use standardized parser for robust property parsing
         from agents.shared.input_parser import parse_mortgage_application
         
-        # Parse using standardized parser
-        parsed_data = parse_mortgage_application(property_info)
+        # Parse using standardized parser (tool_input contains the property info)
+        parsed_data = parse_mortgage_application(tool_input)
+        property_info = tool_input  # Keep for fallback processing
         
         # Extract property details with fallbacks
         property_address = parsed_data.get("address") or "456 Oak Ave, Austin, TX"
@@ -49,9 +50,17 @@ def analyze_property_value(property_info: str) -> str:
         bedrooms = parsed_data.get("bedrooms")  # Can be None
         bathrooms = parsed_data.get("bathrooms")  # Can be None
         
-        # Initialize Neo4j connection
-        initialize_connection()
+        # Initialize Neo4j connection with robust error handling
+        if not initialize_connection():
+            return "❌ Failed to connect to Neo4j database. Please try again later."
+        
         connection = get_neo4j_connection()
+        
+        # ROBUST CONNECTION CHECK: Handle server environment issues
+        if connection.driver is None:
+            # Force reconnection if driver is None
+            if not connection.connect():
+                return "❌ Failed to establish Neo4j connection. Please restart the server."
         
         # Calculate LTV if property value is provided
         ltv = (loan_amount / property_value * 100) if property_value else None
@@ -162,13 +171,13 @@ def analyze_property_value(property_info: str) -> str:
         if ltv:
             analysis_report.append(f"\n📊 LOAN-TO-VALUE ANALYSIS:")
             if ltv <= 80:
-                analysis_report.append(f"    LTV {ltv:.1f}% - Conventional conforming range")
+                analysis_report.append(f"✅ LTV {ltv:.1f}% - Conventional conforming range")
             elif ltv <= 90:
-                analysis_report.append(f"   ⚠️ LTV {ltv:.1f}% - May require mortgage insurance")
+                analysis_report.append(f"⚠️ LTV {ltv:.1f}% - May require mortgage insurance")
             elif ltv <= 95:
-                analysis_report.append(f"   ⚠️ LTV {ltv:.1f}% - High LTV, special programs required")
+                analysis_report.append(f"⚠️ LTV {ltv:.1f}% - High LTV, special programs required")
             else:
-                analysis_report.append(f"    LTV {ltv:.1f}% - Exceeds most program limits")
+                analysis_report.append(f"❌ LTV {ltv:.1f}% - Exceeds most program limits")
         
         # Property Condition Assessment
         if condition_rules:

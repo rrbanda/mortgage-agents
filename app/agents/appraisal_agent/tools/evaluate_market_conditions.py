@@ -159,40 +159,55 @@ def parse_market_conditions_info(market_info: str) -> Dict[str, Any]:
 
 
 @tool
-def evaluate_market_conditions(
-    market_info: str
-) -> str:
+def evaluate_market_conditions(tool_input: str) -> str:
     """
     Evaluate market conditions affecting property value using Neo4j appraisal rules.
     
     This tool analyzes current market conditions and their impact on property
     valuation and lending decisions.
     
-    Provide market conditions information in natural language, such as:
-    "Market analysis for 123 Oak St in Downtown area, single family homes, price range $400,000-$600,000, days on market 35, normal inventory, prices increasing, median price $520,000"
-    "Property at 456 Main St, Westside neighborhood, condo market, 45 days on market, low inventory, stable prices, absorption rate 2.5 months"
-    "Austin TX market area, townhouse price range $350,000-$450,000, median sale price $395,000, prior year median $375,000, rising prices"
+    Args:
+        tool_input: Market conditions information in natural language format
+        
+    Example:
+        "Market analysis for 123 Oak St in Downtown area, single family homes, price range $400,000-$600,000, days on market 35, normal inventory, prices increasing, median price $520,000"
+    
+    Returns:
+        String containing detailed market conditions evaluation report
     """
     
-    # Parse the natural language input
-    parsed_info = parse_market_conditions_info(market_info)
-    
-    # Extract all the parameters
-    property_address = parsed_info["property_address"]
-    property_type = parsed_info["property_type"]
-    market_area = parsed_info["market_area"]
-    price_range = parsed_info["price_range"]
-    days_on_market = parsed_info["days_on_market"]
-    inventory_levels = parsed_info["inventory_levels"]
-    price_trend = parsed_info["price_trend"]
-    absorption_rate = parsed_info["absorption_rate"]
-    median_sale_price = parsed_info["median_sale_price"]
-    prior_year_median = parsed_info["prior_year_median"]
-    
     try:
-        # Initialize Neo4j connection
-        initialize_connection()
+        # Use standardized parsing first, then custom parsing for tool-specific data
+        from agents.shared.input_parser import parse_mortgage_application
+        
+        parsed_data = parse_mortgage_application(tool_input)
+        
+        # Parse the natural language input with custom logic for market-specific details
+        parsed_info = parse_market_conditions_info(tool_input)
+        
+        # Extract all the parameters
+        property_address = parsed_info["property_address"]
+        property_type = parsed_info["property_type"]
+        market_area = parsed_info["market_area"]
+        price_range = parsed_info["price_range"]
+        days_on_market = parsed_info["days_on_market"]
+        inventory_levels = parsed_info["inventory_levels"]
+        price_trend = parsed_info["price_trend"]
+        absorption_rate = parsed_info["absorption_rate"]
+        median_sale_price = parsed_info["median_sale_price"]
+        prior_year_median = parsed_info["prior_year_median"]
+        
+        # Initialize Neo4j connection with robust error handling
+        if not initialize_connection():
+            return "❌ Failed to connect to Neo4j database. Please try again later."
+        
         connection = get_neo4j_connection()
+        
+        # ROBUST CONNECTION CHECK: Handle server environment issues
+        if connection.driver is None:
+            # Force reconnection if driver is None
+            if not connection.connect():
+                return "❌ Failed to establish Neo4j connection. Please restart the server."
         
         with connection.driver.session(database=connection.database) as session:
             # Get market analysis rules
@@ -462,7 +477,7 @@ def evaluate_market_conditions(
         
     except Exception as e:
         logger.error(f"Error during market conditions evaluation: {e}")
-        return f" Error during market conditions evaluation: {str(e)}"
+        return f"❌ Error during market conditions evaluation: {str(e)}"
 
 
 def validate_tool() -> bool:

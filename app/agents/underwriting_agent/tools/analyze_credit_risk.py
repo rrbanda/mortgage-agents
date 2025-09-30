@@ -39,47 +39,73 @@ class CreditAnalysisRequest(BaseModel):
 
 
 @tool
-def analyze_credit_risk(borrower_info: str) -> str:
+def analyze_credit_risk(tool_input: str) -> str:
     """Perform comprehensive credit risk analysis for mortgage underwriting.
     
+    This tool analyzes a borrower's credit profile against predefined business rules
+    from Neo4j to assess credit risk and provide recommendations for underwriting.
+    
     Args:
-        borrower_info: Credit details like "Credit: 720, Loan: conventional, Bankruptcy: 36 months ago, Collections: 0, History: 8 years"
+        tool_input: Credit details in natural language format
+        
+    Example:
+        "Credit: 720, Loan: conventional, Bankruptcy: 36 months ago, Collections: 0, History: 8 years"
+    
+    Returns:
+        String containing comprehensive credit risk analysis report
     """
     
     try:
-        # Parse borrower info string
+        # Use standardized parsing first, then custom parsing for tool-specific data
+        from agents.shared.input_parser import parse_mortgage_application
         import re
-        info = borrower_info.lower()
         
-        # Extract credit score
-        credit_match = re.search(r'credit[:\s]*(\d+)', info)
-        credit_score = int(credit_match.group(1)) if credit_match else 720
+        parsed_data = parse_mortgage_application(tool_input)
+        borrower_info = tool_input.lower() # Keep for fallback regex
         
-        # Extract loan program
-        loan_match = re.search(r'loan[:\s]*([a-z]+)', info)
-        loan_program = loan_match.group(1) if loan_match else "conventional"
+        # Extract credit score (use parser first, regex fallback)
+        credit_score = parsed_data.get("credit_score") or 720
+        credit_match = re.search(r'credit[:\s]*(\d+)', borrower_info)
+        if credit_match and not parsed_data.get("credit_score"):
+            credit_score = int(credit_match.group(1))
+        
+        # Extract loan program (use parser first, regex fallback)
+        loan_program = parsed_data.get("loan_program") or "conventional"
+        loan_match = re.search(r'loan[:\s]*([a-z]+)', borrower_info)
+        if loan_match and not parsed_data.get("loan_program"):
+            loan_program = loan_match.group(1)
         
         # Extract bankruptcy info
-        bankruptcy_match = re.search(r'bankruptcy[:\s]*(\d+)', info)
+        bankruptcy_match = re.search(r'bankruptcy[:\s]*(\d+)', borrower_info)
         bankruptcy_months_ago = int(bankruptcy_match.group(1)) if bankruptcy_match else None
         
         # Extract foreclosure info
-        foreclosure_match = re.search(r'foreclosure[:\s]*(\d+)', info)
+        foreclosure_match = re.search(r'foreclosure[:\s]*(\d+)', borrower_info)
         foreclosure_months_ago = int(foreclosure_match.group(1)) if foreclosure_match else None
         
         # Extract collections
-        collections_match = re.search(r'collections[:\s]*(\d+)', info)
+        collections_match = re.search(r'collections[:\s]*(\d+)', borrower_info)
         open_collections = int(collections_match.group(1)) if collections_match else 0
         
         # Extract credit history
-        history_match = re.search(r'history[:\s]*(\d+)', info)
+        history_match = re.search(r'history[:\s]*(\d+)', borrower_info)
         credit_history_years = float(history_match.group(1)) if history_match else 8.0
         
         # Set default late payments
         late_payments_12_months = {"30_day": 0, "60_day": 0, "90_day": 0}
         
-        initialize_connection()
+        # Initialize Neo4j connection with robust error handling
+        if not initialize_connection():
+            return "❌ Failed to connect to Neo4j database. Please try again later."
+        
         connection = get_neo4j_connection()
+        
+        # ROBUST CONNECTION CHECK: Handle server environment issues
+        if connection.driver is None:
+            # Force reconnection if driver is None
+            if not connection.connect():
+                return "❌ Failed to establish Neo4j connection. Please restart the server."
+        
         # Query underwriting rules for credit analysis
         credit_rules_query = """
         MATCH (r:UnderwritingRule) 

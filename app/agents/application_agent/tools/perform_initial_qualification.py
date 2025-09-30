@@ -153,51 +153,67 @@ def parse_borrower_info(borrower_info: str) -> Dict[str, Any]:
     return parsed
 
 
-@tool  
-def perform_initial_qualification(
-    borrower_info: str
-) -> str:
+@tool
+def perform_initial_qualification(tool_input: str) -> str:
     """
     Perform initial qualification assessment using Neo4j application intake rules.
     
     This tool evaluates initial qualification across multiple loan programs
     and provides routing recommendations for the application workflow.
     
-    Provide borrower information in natural language, such as:
-    "Credit score is 720, monthly income $8,500, looking at $450,000 home with 15% down"
-    "I make $75,000 annually, credit score 680, have $30,000 saved for down payment"
-    "Self-employed 3 years, monthly income $6,000, credit 710, loan amount $350,000"
+    Args:
+        tool_input: Borrower information in natural language format
+        
+    Example:
+        "Credit score is 720, monthly income $8,500, looking at $450,000 home with 15% down"
+    
+    Returns:
+        String containing detailed qualification assessment and recommendations
     """
     
-    # Parse the natural language input
-    parsed_info = parse_borrower_info(borrower_info)
-    
-    # Extract all the parameters
-    credit_score = parsed_info["credit_score"]
-    monthly_gross_income = parsed_info["monthly_gross_income"]  
-    monthly_debts = parsed_info["monthly_debts"]
-    liquid_assets = parsed_info["liquid_assets"]
-    employment_years = parsed_info["employment_years"]
-    employment_type = parsed_info["employment_type"]
-    loan_amount = parsed_info["loan_amount"]
-    property_value = parsed_info["property_value"]
-    down_payment = parsed_info["down_payment"]
-    property_type = parsed_info["property_type"]
-    occupancy_type = parsed_info["occupancy_type"]
-    loan_purpose = parsed_info["loan_purpose"]
-    application_id = parsed_info["application_id"]
-    first_time_buyer = parsed_info["first_time_buyer"]
-    military_service = parsed_info["military_service"]
-    rural_property = parsed_info["rural_property"]
-    bankruptcy_history = parsed_info["bankruptcy_history"]
-    foreclosure_history = parsed_info["foreclosure_history"]
-    collections_amount = parsed_info["collections_amount"]
-    late_payments_12_months = parsed_info["late_payments_12_months"]
-    
     try:
-        # Initialize Neo4j connection
-        initialize_connection()
+        # Use standardized parsing first, then custom parsing for tool-specific data
+        from agents.shared.input_parser import parse_mortgage_application
+        
+        # Parse using standardized parser first
+        parsed_data = parse_mortgage_application(tool_input)
+        
+        # Parse the natural language input with custom logic for borrower-specific details
+        parsed_info = parse_borrower_info(tool_input)
+        
+        # Extract all the parameters
+        credit_score = parsed_info["credit_score"]
+        monthly_gross_income = parsed_info["monthly_gross_income"]  
+        monthly_debts = parsed_info["monthly_debts"]
+        liquid_assets = parsed_info["liquid_assets"]
+        employment_years = parsed_info["employment_years"]
+        employment_type = parsed_info["employment_type"]
+        loan_amount = parsed_info["loan_amount"]
+        property_value = parsed_info["property_value"]
+        down_payment = parsed_info["down_payment"]
+        property_type = parsed_info["property_type"]
+        occupancy_type = parsed_info["occupancy_type"]
+        loan_purpose = parsed_info["loan_purpose"]
+        application_id = parsed_info["application_id"]
+        first_time_buyer = parsed_info["first_time_buyer"]
+        military_service = parsed_info["military_service"]
+        rural_property = parsed_info["rural_property"]
+        bankruptcy_history = parsed_info["bankruptcy_history"]
+        foreclosure_history = parsed_info["foreclosure_history"]
+        collections_amount = parsed_info["collections_amount"]
+        late_payments_12_months = parsed_info["late_payments_12_months"]
+        
+        # Initialize Neo4j connection with robust error handling
+        if not initialize_connection():
+            return "❌ Failed to connect to Neo4j database. Please try again later."
+        
         connection = get_neo4j_connection()
+        
+        # ROBUST CONNECTION CHECK: Handle server environment issues
+        if connection.driver is None:
+            # Force reconnection if driver is None
+            if not connection.connect():
+                return "❌ Failed to establish Neo4j connection. Please restart the server."
         
         with connection.driver.session(database=connection.database) as session:
             # Get initial qualification rules
@@ -316,23 +332,26 @@ def perform_initial_qualification(
             qualification_report.append(f" Income: ${monthly_gross_income:,.2f} (below min ${single_min:,.2f})")
             income_issues.append(f"Income below minimum requirement")
         
-        # Check employment stability
-        stability_reqs = income_rule.get('income_stability_requirements', {})
-        min_employment = stability_reqs.get('employment_months', 24) / 12
-        self_employed_years = stability_reqs.get('self_employed_years', 2)
+        # Check employment stability using basic requirements
+        min_employment = 2.0  # Standard 2-year requirement
         
         if employment_type == "self_employed":
-            if employment_years >= self_employed_years:
-                qualification_report.append(f" Self-Employment: {employment_years} years (min {self_employed_years})")
+            min_required = 2.0  # Self-employed need 2 years tax returns
+            if employment_years >= min_required:
+                qualification_report.append(f"✅ Self-Employment: {employment_years} years (min {min_required})")
             else:
-                qualification_report.append(f" Self-Employment: {employment_years} years (min {self_employed_years})")
+                qualification_report.append(f"⚠️ Self-Employment: {employment_years} years (min {min_required})")
                 income_issues.append("Insufficient self-employment history")
         else:
             if employment_years >= min_employment:
-                qualification_report.append(f" Employment: {employment_years} years (min {min_employment})")
+                qualification_report.append(f"✅ Employment: {employment_years} years (meets 2-year requirement)")
             else:
-                qualification_report.append(f"⚠️ Employment: {employment_years} years (min {min_employment})")
-                income_warnings.append("Limited employment history")
+                qualification_report.append(f"⚠️ Employment: {employment_years} years (short of 2-year requirement)")
+                gap_months = (min_employment - employment_years) * 12
+                if gap_months > 12:
+                    income_issues.append("Insufficient employment history for most loan programs")
+                else:
+                    income_warnings.append("Limited employment history - may require additional documentation")
         
         # Check DTI ratios
         dti_limits = income_rule.get('dti_pre_screen_limits', {})
@@ -493,7 +512,7 @@ def perform_initial_qualification(
         
     except Exception as e:
         logger.error(f"Error during initial qualification: {e}")
-        return f" Error during initial qualification: {str(e)}"
+        return f"❌ Error during initial qualification: {str(e)}"
 
 
 def validate_tool() -> bool:

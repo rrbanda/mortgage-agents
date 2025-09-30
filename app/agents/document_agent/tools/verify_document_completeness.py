@@ -21,8 +21,8 @@ class DocumentCompletenessRequest(BaseModel):
     loan_program: str = Field(description="Loan program type (FHA, VA, Conventional, etc.)", default="general")
 
 
-@tool("verify_document_completeness", args_schema=DocumentCompletenessRequest, parse_docstring=True)
-def verify_document_completeness(application_id: str, loan_program: str = "general") -> str:
+@tool
+def verify_document_completeness(tool_input: str) -> str:
     """
     Check document completeness using Neo4j Document Verification Rules.
     
@@ -30,17 +30,49 @@ def verify_document_completeness(application_id: str, loan_program: str = "gener
     hardcoded lists. Analyzes what's been submitted vs what's required.
     
     Args:
-        application_id: Application identifier
-        loan_program: Loan program type for specific requirements
+        tool_input: Document completeness verification request in natural language format
         
+    Example:
+        "Application: APP_123, Loan program: FHA" or "Check completeness for APP_20241219_123"
+    
     Returns:
-        Document completeness analysis with specific missing documents
+        String containing document completeness analysis with specific missing documents
     """
     
     try:
-        # Initialize database connection
-        initialize_connection()
+        # Use standardized parsing first, then custom parsing for tool-specific data
+        from agents.shared.input_parser import parse_mortgage_application
+        import re
+        
+        parsed_data = parse_mortgage_application(tool_input)
+        
+        # Extract application ID from tool_input
+        app_match = re.search(r'(?:application|app):\s*([^,\s]+)', tool_input.lower())
+        if not app_match:
+            # Try to find APP_ pattern directly
+            app_match = re.search(r'(APP_[A-Z0-9_]+)', tool_input, re.IGNORECASE)
+        
+        if app_match:
+            application_id = app_match.group(1).strip()
+        else:
+            # If no clear pattern, use the whole input as application ID
+            application_id = tool_input.strip()
+        
+        # Extract loan program
+        loan_match = re.search(r'loan\s*program:\s*([^,\s]+)', tool_input.lower())
+        loan_program = loan_match.group(1).strip() if loan_match else "general"
+        
+        # Initialize database connection with robust error handling
+        if not initialize_connection():
+            return "❌ Failed to connect to Neo4j database. Please try again later."
+        
         connection = get_neo4j_connection()
+        
+        # ROBUST CONNECTION CHECK: Handle server environment issues
+        if connection.driver is None:
+            # Force reconnection if driver is None
+            if not connection.connect():
+                return "❌ Failed to establish Neo4j connection. Please restart the server."
         
         # Get required documents from Neo4j rules
         required_doc_categories = _get_required_categories_from_rules(connection, loan_program)
@@ -57,7 +89,10 @@ def verify_document_completeness(application_id: str, loan_program: str = "gener
         return _format_completeness_report(application_id, completeness_analysis)
         
     except Exception as e:
-        return f" Error analyzing document completeness: {str(e)}"
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error analyzing document completeness: {e}")
+        return f"❌ Error analyzing document completeness: {str(e)}"
 
 
 def _get_required_categories_from_rules(connection, loan_program: str) -> Dict[str, Dict]:

@@ -11,11 +11,14 @@ Purpose:
 - Use business rules from Neo4j for dynamic requirement checking
 """
 
-import json
+import logging
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 from langchain_core.tools import tool
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 try:
     from utils import get_neo4j_connection, initialize_connection
@@ -46,15 +49,8 @@ class QualificationAnalysisRequest(BaseModel):
     )
 
 
-@tool("check_qualification_requirements", args_schema=QualificationAnalysisRequest, parse_docstring=True)
-def check_qualification_requirements(
-    loan_programs: str,
-    borrower_credit_score: Optional[int] = None,
-    borrower_down_payment: Optional[float] = None,
-    borrower_dti_ratio: Optional[float] = None,
-    military_status: str = "none",
-    property_location: str = "suburban"
-) -> Dict[str, Any]:
+@tool
+def check_qualification_requirements(tool_input: str) -> str:
     """
     Analyze qualification requirements for specific loan programs using Neo4j data.
     
@@ -62,31 +58,90 @@ def check_qualification_requirements(
     gaps between borrower profile and qualification criteria using business rules from Neo4j.
     
     Args:
-        loan_programs: Loan programs to analyze ('FHA', 'VA', 'Conventional', etc. or 'all')
-        borrower_credit_score: Borrower's current credit score (optional)
-        borrower_down_payment: Available down payment as percentage (optional)
-        borrower_dti_ratio: Current debt-to-income ratio (optional)
-        military_status: Military status for VA loan eligibility
-        property_location: Property location for USDA eligibility
+        tool_input: Qualification analysis request in natural language format
+        
+    Example:
+        "Programs: FHA, VA; Credit: 720; Down payment: 10%; DTI: 25%; Military: veteran; Location: suburban"
         
     Returns:
-        Dict containing detailed qualification analysis including:
-        - program_requirements: detailed requirements for each program
-        - qualification_gaps: specific areas where borrower may not meet requirements
-        - improvement_roadmap: step-by-step guidance to meet requirements
-        - alternative_programs: programs that may be better suited
+        String containing detailed qualification analysis and recommendations
     """
     
-    # Initialize Neo4j connection
-    if not initialize_connection():
-        return {
-            "error": "Failed to connect to Neo4j database",
-            "success": False
-        }
-    
-    connection = get_neo4j_connection()
-    
     try:
+        # Use standardized parsing first, then custom parsing for tool-specific data
+        import re
+        try:
+            from agents.shared.input_parser import parse_mortgage_application
+        except ImportError:
+            # Fallback in case of import issues
+            def parse_mortgage_application(text):
+                return {}
+        
+        parsed_data = parse_mortgage_application(tool_input)
+        request = tool_input.lower()  # Keep for fallback regex
+        
+        # Extract loan programs (use parser first, regex fallback)
+        if parsed_data.get("loan_program"):
+            loan_programs = parsed_data["loan_program"]
+        else:
+            # Extract from natural language input - handle comma/semicolon-separated format
+            program_match = re.search(r'(?:loan\s*)?programs?:\s*([^,;]+)', request)
+            if program_match:
+                loan_programs = program_match.group(1).strip()
+            else:
+                # Fallback: look for program names directly
+                program_names = ['all', 'fha', 'conventional', 'va', 'usda', 'jumbo']
+                for name in program_names:
+                    if name in request:
+                        loan_programs = name
+                        break
+                else:
+                    loan_programs = "all"
+        
+        # Extract borrower details (use parser first, regex fallback)
+        borrower_credit_score = parsed_data.get("credit_score")
+        if not borrower_credit_score:
+            credit_match = re.search(r'credit:\s*(\d+)', request)
+            borrower_credit_score = int(credit_match.group(1)) if credit_match else None
+        
+        borrower_down_payment = parsed_data.get("down_payment_percent")
+        if not borrower_down_payment:
+            down_match = re.search(r'down\s*payment:\s*(\d+)%?', request)
+            borrower_down_payment = float(down_match.group(1)) / 100 if down_match else None
+        
+        borrower_dti_ratio = parsed_data.get("dti_ratio")
+        if not borrower_dti_ratio:
+            dti_match = re.search(r'dti:\s*(\d+)%?', request)
+            borrower_dti_ratio = float(dti_match.group(1)) / 100 if dti_match else None
+        
+        # Extract military status
+        military_status = "none"
+        if "veteran" in request or "military" in request:
+            military_status = "veteran"
+        elif "active duty" in request:
+            military_status = "active_duty"
+        elif "spouse" in request and "military" in request:
+            military_status = "spouse"
+        
+        # Extract property location
+        property_location = "suburban"  # default
+        if "urban" in request:
+            property_location = "urban"
+        elif "rural" in request:
+            property_location = "rural"
+        
+        # Initialize Neo4j connection with robust error handling
+        if not initialize_connection():
+            return "❌ Failed to connect to Neo4j database. Please try again later."
+        
+        connection = get_neo4j_connection()
+        
+        # ROBUST CONNECTION CHECK: Handle server environment issues
+        if connection.driver is None:
+            # Force reconnection if driver is None
+            if not connection.connect():
+                return "❌ Failed to establish Neo4j connection. Please restart the server."
+        
         # Parse requested programs
         if loan_programs.lower() == "all":
             program_names = None  # Will get all programs
@@ -124,11 +179,7 @@ def check_qualification_requirements(
         
         if not programs_data:
             available_programs = _get_available_programs(connection)
-            return {
-                "error": f"No loan programs found for: {loan_programs}",
-                "available_programs": available_programs,
-                "success": False
-            }
+            return f"❌ No loan programs found for: {loan_programs}. Available programs: {', '.join(available_programs)}"
         
         # Analyze each program's requirements
         program_analyses = []
@@ -145,30 +196,112 @@ def check_qualification_requirements(
         improvement_roadmap = _generate_improvement_roadmap(qualification_gaps, connection)
         alternative_programs = _suggest_alternative_programs(program_analyses, connection)
         
-        return {
-            "query_info": {
-                "programs_analyzed": [p['program']['name'] for p in programs_data],
-                "borrower_provided": {
-                    "credit_score": borrower_credit_score,
-                    "down_payment": f"{borrower_down_payment * 100:.1f}%" if borrower_down_payment else None,
-                    "dti_ratio": f"{borrower_dti_ratio * 100:.1f}%" if borrower_dti_ratio else None,
-                    "military_status": military_status,
-                    "property_location": property_location
-                },
-                "timestamp": datetime.now().isoformat()
-            },
-            "program_requirements": program_analyses,
-            "qualification_gaps": qualification_gaps,
-            "improvement_roadmap": improvement_roadmap,
-            "alternative_programs": alternative_programs,
-            "success": True
-        }
+        # Format comprehensive qualification analysis as string
+        programs_analyzed = [p['program']['name'] for p in programs_data]
+        
+        analysis_report = [
+            "🎯 **LOAN QUALIFICATION ANALYSIS**",
+            "=" * 50,
+            f"**Programs Analyzed:** {', '.join(programs_analyzed)}",
+            f"**Analysis Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            "",
+            "👤 **BORROWER PROFILE:**",
+            f"• Credit Score: {borrower_credit_score if borrower_credit_score else 'Not provided'}",
+            f"• Down Payment: {f'{borrower_down_payment * 100:.1f}%' if borrower_down_payment else 'Not provided'}",
+            f"• DTI Ratio: {f'{borrower_dti_ratio * 100:.1f}%' if borrower_dti_ratio else 'Not provided'}",
+            f"• Military Status: {military_status.replace('_', ' ').title()}",
+            f"• Property Location: {property_location.title()}",
+            ""
+        ]
+        
+        # Program Requirements Analysis
+        analysis_report.append("📋 **PROGRAM REQUIREMENTS ANALYSIS:**")
+        for analysis in program_analyses:
+            program_name = analysis.get('program_name', 'Unknown Program')
+            overall_qual = analysis.get('overall_qualification', {})
+            qual_status = overall_qual.get('status', 'Unknown')
+            
+            analysis_report.append(f"\n### {program_name.upper()}")
+            analysis_report.append(f"**Qualification Status:** {qual_status}")
+            
+            if qual_status == "Meets All Requirements":
+                analysis_report.append("✅ You meet all basic requirements for this program")
+            elif qual_status == "Has Qualification Gaps":
+                analysis_report.append("⚠️ You meet some requirements but have qualification gaps")
+            elif qual_status == "Requirements Not Fully Evaluated":
+                analysis_report.append("ℹ️ Provide additional information for complete qualification analysis")
+            else:
+                analysis_report.append("❌ You do not currently meet the basic requirements")
+            
+            # Show basic requirements
+            basic_reqs = analysis.get('basic_requirements', {})
+            if basic_reqs and isinstance(basic_reqs, dict):
+                analysis_report.append("**Basic Requirements:**")
+                for req_name, req_data in basic_reqs.items():
+                    if isinstance(req_data, dict):
+                        req_status = "✅" if req_data.get('borrower_meets') else "❌"
+                        formatted_name = req_name.replace('_', ' ').title()
+                        analysis_report.append(f"  {req_status} {formatted_name}")
+            elif basic_reqs and isinstance(basic_reqs, list):
+                analysis_report.append("**Basic Requirements:**")
+                for req in basic_reqs[:5]:
+                    req_status = "✅" if req.get('meets_requirement') else "❌"
+                    req_name = req.get('requirement_name', '').replace('_', ' ').title()
+                    analysis_report.append(f"  {req_status} {req_name}")
+        
+        analysis_report.append("")
+        
+        # Qualification Gaps
+        if qualification_gaps:
+            analysis_report.append("🔍 **QUALIFICATION GAPS IDENTIFIED:**")
+            gap_summary = qualification_gaps.get('summary', {})
+            if gap_summary.get('status') == "No Qualification Gaps":
+                analysis_report.append("✅ No qualification gaps found - you meet all requirements!")
+            else:
+                total_gaps = gap_summary.get('total_gaps', 0)
+                gap_types = gap_summary.get('gap_types', [])
+                analysis_report.append(f"Found {total_gaps} qualification gap(s) in: {', '.join(gap_types)}")
+                
+                # Credit score gaps
+                credit_gaps = qualification_gaps.get('credit_score_gaps', [])
+                if credit_gaps and isinstance(credit_gaps, list):
+                    analysis_report.append("**Credit Score Gaps:**")
+                    for gap in credit_gaps[:3]:
+                        analysis_report.append(f"• {gap.get('program', 'Program')}: {gap.get('gap', 'Need higher credit score')}")
+                
+                # Down payment gaps
+                dp_gaps = qualification_gaps.get('down_payment_gaps', [])
+                if dp_gaps and isinstance(dp_gaps, list):
+                    analysis_report.append("**Down Payment Gaps:**")
+                    for gap in dp_gaps[:3]:
+                        analysis_report.append(f"• {gap.get('program', 'Program')}: {gap.get('gap', 'Need higher down payment')}")
+        
+        analysis_report.append("")
+        
+        # Improvement Roadmap
+        if improvement_roadmap and isinstance(improvement_roadmap, list):
+            analysis_report.append("🚀 **IMPROVEMENT ROADMAP:**")
+            for i, step in enumerate(improvement_roadmap[:5], 1):
+                if isinstance(step, dict):
+                    step_title = step.get('step_title', f'Step {i}')
+                    step_desc = step.get('description', 'Follow program guidelines')
+                    analysis_report.append(f"{i}. **{step_title}**")
+                    analysis_report.append(f"   {step_desc}")
+        
+        # Alternative Programs
+        if alternative_programs and isinstance(alternative_programs, list):
+            analysis_report.append("\n💡 **ALTERNATIVE PROGRAM RECOMMENDATIONS:**")
+            for alt in alternative_programs[:3]:
+                if isinstance(alt, dict):
+                    alt_name = alt.get('program_name', 'Alternative Program')
+                    alt_reason = alt.get('recommendation_reason', 'May be a good fit')
+                    analysis_report.append(f"• **{alt_name}**: {alt_reason}")
+        
+        return "\n".join(analysis_report)
         
     except Exception as e:
-        return {
-            "error": f"Error analyzing qualification requirements: {str(e)}",
-            "success": False
-        }
+        logger.error(f"Error analyzing qualification requirements: {e}")
+        return f"❌ Error analyzing qualification requirements: {str(e)}"
     finally:
         connection.disconnect()
 
@@ -176,6 +309,11 @@ def check_qualification_requirements(
 def _get_available_programs(connection) -> List[str]:
     """Get list of available loan programs from Neo4j"""
     try:
+        # Ensure connection has valid driver
+        if connection.driver is None:
+            if not connection.connect():
+                return []
+        
         with connection.driver.session(database=connection.database) as session:
             result = session.run("MATCH (lp:LoanProgram) RETURN lp.name as name ORDER BY name")
             # Convert to list to avoid consumption errors
@@ -204,8 +342,8 @@ def _analyze_program_requirements(program: Dict, requirements: List[Dict],
             "gap": None
         },
         "down_payment": {
-            "minimum": program.get('min_down_payment', 0),
-            "minimum_percent": f"{program.get('min_down_payment', 0) * 100:.1f}%",
+            "minimum": None,  # Will be set below using standardized requirements
+            "minimum_percent": None,  # Will be set below
             "description": f"Minimum down payment for {program_name} loans",
             "borrower_meets": None,
             "gap": None
@@ -218,6 +356,11 @@ def _analyze_program_requirements(program: Dict, requirements: List[Dict],
             "gap": None
         }
     }
+    
+    # Use Neo4j program data for down payment requirements
+    min_down_payment = program.get('min_down_payment', 0)
+    basic_requirements["down_payment"]["minimum"] = min_down_payment
+    basic_requirements["down_payment"]["minimum_percent"] = f"{min_down_payment * 100:.1f}%"
     
     # Check borrower against requirements if data provided
     if credit_score is not None and basic_requirements["credit_score"]["minimum"]:
@@ -271,6 +414,11 @@ def _get_special_requirements(program_name: str, military_status: str,
     special_reqs = {}
     
     # Query special requirements from Neo4j - 100% data-driven
+    # Ensure connection has valid driver
+    if connection.driver is None:
+        if not connection.connect():
+            return special_reqs
+    
     with connection.driver.session(database=connection.database) as session:
         query = """
         MATCH (sr:SpecialRequirement {program_name: $program_name})
@@ -445,6 +593,11 @@ def _generate_improvement_roadmap(qualification_gaps: Dict, connection) -> List[
     }
     
     # Get improvement strategies from Neo4j for relevant gap types
+    # Ensure connection has valid driver
+    if connection.driver is None:
+        if not connection.connect():
+            return []
+    
     with connection.driver.session(database=connection.database) as session:
         for gap_type, strategy_category in gap_to_strategy_map.items():
             if qualification_gaps.get(gap_type):
@@ -551,7 +704,8 @@ def _suggest_alternative_programs(program_analyses: List[Dict], connection) -> L
     programs_by_gaps.sort(key=lambda x: x["gap_count"])
     
     # Suggest top alternatives
-    for i, prog in enumerate(programs_by_gaps[:3]):
+    top_programs = programs_by_gaps[:3] if isinstance(programs_by_gaps, list) else []
+    for i, prog in enumerate(top_programs):
         if prog["gap_count"] == 0:
             alternatives.append({
                 "rank": i + 1,

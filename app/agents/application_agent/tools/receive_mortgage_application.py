@@ -205,7 +205,7 @@ def parse_application_info(application_info: str) -> Dict[str, Any]:
 
 @tool
 def receive_mortgage_application(
-    application_info: str
+    tool_input: str
 ) -> str:
     """Process complete mortgage application with customer data.
     
@@ -221,8 +221,8 @@ def receive_mortgage_application(
      down payment $80000, employed 5 years as software engineer, first-time buyer"
     """
     
-    # Parse the natural language application info
-    parsed_info = parse_application_info(application_info)
+    # Parse the natural language application info (tool_input contains the data)
+    parsed_info = parse_application_info(tool_input)
     
     # Extract all parameters
     first_name = parsed_info["first_name"]
@@ -320,9 +320,17 @@ Please correct the following information:
 Ask the customer to provide the correct information and call this tool again.
 """
         
-        # Initialize Neo4j connection
-        initialize_connection()
+        # Initialize Neo4j connection with robust error handling
+        if not initialize_connection():
+            return "❌ Failed to connect to Neo4j database. Please try again later."
+        
         connection = get_neo4j_connection()
+        
+        # ROBUST CONNECTION CHECK: Handle server environment issues
+        if connection.driver is None:
+            # Force reconnection if driver is None
+            if not connection.connect():
+                return "❌ Failed to establish Neo4j connection. Please restart the server."
         
         with connection.driver.session(database=connection.database) as session:
             # Get application requirements

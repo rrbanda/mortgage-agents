@@ -13,10 +13,14 @@ Purpose:
 """
 
 import json
+import logging
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 from pydantic import BaseModel, Field
 from langchain_core.tools import tool
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 try:
     from utils import get_neo4j_connection, initialize_connection
@@ -42,17 +46,29 @@ class NextStepsGuidanceRequest(BaseModel):
 
 
 @tool
-def guide_next_steps(guidance_request: str) -> str:
+def guide_next_steps(tool_input: str) -> str:
     """Provides personalized step-by-step guidance for the mortgage application process.
     
+    This tool provides step-by-step guidance through the mortgage process based on
+    the borrower's current stage, loan program, and specific needs.
+    
     Args:
-        guidance_request: Request details like "Stage: application, Loan: FHA, Status: first_time, Focus: documentation"
+        tool_input: Request details in natural language format
+        
+    Example:
+        "Stage: application, Loan: FHA, Status: first_time, Focus: documentation"
+    
+    Returns:
+        String containing personalized step-by-step guidance
     """
     
     try:
-        # Parse guidance request string
+        # Use standardized parsing first, then custom parsing for tool-specific data
+        from agents.shared.input_parser import parse_mortgage_application
         import re
-        request = guidance_request.lower()
+        
+        parsed_data = parse_mortgage_application(tool_input)
+        request = tool_input.lower()  # Keep for fallback regex
         
         # Extract current stage
         stage_match = re.search(r'stage:\s*([a-z_]+)', request)
@@ -78,11 +94,8 @@ def guide_next_steps(guidance_request: str) -> str:
         # Get current stage details and next steps from Neo4j
         current_stage_info = _get_current_stage_info(current_stage, connection)
         if not current_stage_info:
-            return {
-                "error": f"Stage '{current_stage}' not found in mortgage process data",
-                "available_stages": _get_available_stages(connection),
-                "success": False
-            }
+            available_stages = _get_available_stages(connection)
+            return f"❌ Stage '{current_stage}' not found in mortgage process data. Available stages: {', '.join(available_stages)}"
         
         # Get immediate next steps
         immediate_next_steps = _get_immediate_next_steps(current_stage, selected_loan_program, connection)
@@ -110,30 +123,80 @@ def guide_next_steps(guidance_request: str) -> str:
                 current_stage, selected_loan_program, connection
             )
         
-        return {
-            "guidance_info": {
-                "current_stage": current_stage,
-                "stage_description": current_stage_info.get("description", ""),
-                "selected_loan_program": selected_loan_program,
-                "borrower_status": borrower_status,
-                "priority_focus": priority_focus,
-                "timestamp": datetime.now().isoformat()
-            },
-            "current_stage_overview": current_stage_info,
-            "immediate_next_steps": immediate_next_steps,
-            "upcoming_stages": upcoming_stages,
-            "documentation_checklist": documentation_checklist,
-            "timeline_expectations": timeline_expectations,
-            "preparation_tips": preparation_tips,
-            "program_specific_guidance": program_specific_guidance,
-            "success": True
-        }
+        # Format comprehensive guidance as string response
+        guidance_report = [
+            "🎯 **PERSONALIZED MORTGAGE GUIDANCE**",
+            f"**Current Stage:** {current_stage.replace('_', ' ').title()}",
+            f"**Loan Program:** {selected_loan_program.upper() if selected_loan_program else 'Not Selected'}",
+            f"**Borrower Status:** {borrower_status.replace('_', ' ').title()}",
+            f"**Focus Area:** {priority_focus.replace('_', ' ').title()}",
+            "",
+            "📋 **CURRENT STAGE OVERVIEW:**"
+        ]
+        
+        if current_stage_info:
+            guidance_report.append(f"Description: {current_stage_info.get('description', 'Standard mortgage stage')}")
+            guidance_report.append(f"Total Steps: {current_stage_info.get('total_steps', 'N/A')}")
+        
+        guidance_report.append("\n⚡ **IMMEDIATE NEXT STEPS:**")
+        if immediate_next_steps:
+            for i, step in enumerate(immediate_next_steps[:5], 1):
+                step_desc = step.get('description', step.get('name', f'Step {i}'))
+                guidance_report.append(f"{i}. {step_desc}")
+        else:
+            guidance_report.append("• Continue with current stage requirements")
+        
+        guidance_report.append("\n📅 **TIMELINE EXPECTATIONS:**")
+        if timeline_expectations:
+            guidance_report.append(f"• Current Stage Duration: {timeline_expectations.get('current_stage_duration', 'N/A')}")
+            guidance_report.append(f"• Estimated Remaining Time: {timeline_expectations.get('estimated_remaining_time', 'N/A')}")
+            guidance_report.append(f"• Total Process Time: {timeline_expectations.get('total_typical_process', '30-45 days')}")
+        
+        guidance_report.append("\n📄 **DOCUMENTATION CHECKLIST:**")
+        if documentation_checklist:
+            stage_docs = documentation_checklist.get('stage_specific', [])
+            program_docs = documentation_checklist.get('program_specific', [])
+            
+            if stage_docs:
+                guidance_report.append("**Stage-Specific Documents:**")
+                for doc in stage_docs[:3]:
+                    guidance_report.append(f"• {doc.get('name', 'Document required')}")
+            
+            if program_docs:
+                guidance_report.append("**Program-Specific Documents:**")
+                for doc in program_docs[:3]:
+                    guidance_report.append(f"• {doc.get('name', 'Program document')}")
+        
+        guidance_report.append("\n💡 **PREPARATION TIPS:**")
+        if preparation_tips:
+            for tip in preparation_tips[:4]:
+                if isinstance(tip, dict):
+                    tip_text = tip.get('description', tip.get('action', 'Follow standard process'))
+                else:
+                    tip_text = str(tip)
+                guidance_report.append(f"• {tip_text}")
+        
+        if program_specific_guidance:
+            guidance_report.append(f"\n🎯 **{selected_loan_program.upper()} PROGRAM GUIDANCE:**")
+            benefits = program_specific_guidance.get('program_benefits', [])
+            if benefits:
+                guidance_report.append("**Key Benefits:**")
+                for benefit in benefits[:3]:
+                    guidance_report.append(f"• {benefit}")
+            
+            requirements = program_specific_guidance.get('key_requirements', [])
+            if requirements:
+                guidance_report.append("**Key Requirements:**")
+                for req in requirements:
+                    guidance_report.append(f"• {req}")
+        
+        guidance_report.append(f"\n📅 **Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        return "\n".join(guidance_report)
         
     except Exception as e:
-        return {
-            "error": f"Error generating next steps guidance: {str(e)}",
-            "success": False
-        }
+        logger.error(f"Error generating next steps guidance: {e}")
+        return f"❌ Error generating next steps guidance: {str(e)}"
     finally:
         connection.disconnect()
 
