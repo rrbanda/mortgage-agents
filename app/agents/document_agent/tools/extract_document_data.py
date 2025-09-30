@@ -21,14 +21,17 @@ class DocumentExtractionRequest(BaseModel):
 
 
 @tool
-def extract_document_data(document_info: str) -> str:
+def extract_document_data(tool_input: str) -> str:
     """Extract structured data from mortgage documents using Neo4j business rules.
     
     Args:
-        document_info: Document details like "Type: paystub, Content: John Smith, TechCorp, Pay Period: 01/01-01/15, Gross: 4500, Net: 3200, YTD Gross: 18000"
+        tool_input: Document details like "Type: paystub, Content: John Smith, TechCorp, Pay Period: 01/01-01/15, Gross: 4500, Net: 3200, YTD Gross: 18000"
     """
     
     try:
+        # Parse document information from tool_input
+        document_info = tool_input.strip()
+        
         # Use standardized parser for document information
         from agents.shared.input_parser import parse_mortgage_application
         import re

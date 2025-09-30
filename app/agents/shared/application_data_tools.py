@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 @tool
-def get_stored_application_data(application_id: str) -> str:
+def get_stored_application_data(tool_input: str) -> str:
     """
     Retrieve stored application data by application ID.
     
@@ -36,13 +36,16 @@ def get_stored_application_data(application_id: str) -> str:
     without needing to re-ask the customer for basic details.
     
     Args:
-        application_id: The application ID (e.g., "APP_20250926_090605_JOH")
+        tool_input: The application ID (e.g., "APP_20250926_090605_JOH")
         
     Returns:
         String containing the application data or error message
     """
     try:
-        if not application_id or not application_id.strip():
+        # Parse application_id from tool_input
+        application_id = tool_input.strip()
+        
+        if not application_id:
             return "❌ Error: Application ID is required"
             
         # Initialize database connection
@@ -115,24 +118,27 @@ def get_stored_application_data(application_id: str) -> str:
 
 
 @tool  
-def list_stored_applications(status_filter: str = "") -> str:
+def list_stored_applications(tool_input: str = "") -> str:
     """
     List all stored applications, optionally filtered by status.
     
     This tool helps agents see all applications in the system and their current status.
     
     Args:
-        status_filter: Optional status to filter by (e.g., "RECEIVED", "PROCESSING")
+        tool_input: Optional status to filter by (e.g., "RECEIVED", "PROCESSING") or empty for all
         
     Returns:
         String listing all applications matching the criteria
     """
     try:
+        # Parse status filter from tool_input
+        status_filter = tool_input.strip() if tool_input else ""
+        
         # Initialize database connection
         initialize_connection()
         
         # Get applications from storage
-        if status_filter and status_filter.strip():
+        if status_filter:
             success, applications = list_applications()
             if not success:
                 return f"❌ Error retrieving applications: {applications}"
@@ -172,20 +178,23 @@ def list_stored_applications(status_filter: str = "") -> str:
 
 
 @tool
-def find_application_by_name(applicant_name: str) -> str:
+def find_application_by_name(tool_input: str) -> str:
     """
     Find applications by applicant name.
     
     This tool helps agents find existing applications when they only have the customer's name.
     
     Args:
-        applicant_name: Full or partial name of the applicant
+        tool_input: Full or partial name of the applicant
         
     Returns:
         String with matching applications or "not found" message
     """
     try:
-        if not applicant_name or not applicant_name.strip():
+        # Parse applicant name from tool_input
+        applicant_name = tool_input.strip()
+        
+        if not applicant_name:
             return "❌ Error: Applicant name is required"
             
         # Initialize database connection

@@ -118,6 +118,9 @@ def track_application_status(tool_input: str) -> str:
         # 🤖 AGENTIC RETRIEVAL: Get real application data from Neo4j
         app_retrieval = get_application_data(application_id)
         
+        # Properly unpack the tuple returned by get_application_data
+        app_found, app_data = app_retrieval
+        
         # Generate status tracking report
         status_report = []
         status_report.append("APPLICATION STATUS TRACKING")
@@ -127,15 +130,14 @@ def track_application_status(tool_input: str) -> str:
         status_report.append(f"\n📋 APPLICATION TRACKING:")
         status_report.append(f"Application ID: {application_id}")
         
-        if app_retrieval.found:
+        if app_found:
             # Use real stored application data
-            app_data = app_retrieval.application_data
-            stored_status = app_data.current_status
+            stored_status = app_data.get('current_status', current_status)
             status_report.append(f"Stored Status: {stored_status}")
             status_report.append(f"Input Status: {current_status}")
-            status_report.append(f"Applicant: {app_data.first_name} {app_data.last_name}")
-            status_report.append(f"Loan Amount: ${app_data.loan_amount:,.0f}")
-            status_report.append(f"Property: {app_data.property_address}")
+            status_report.append(f"Applicant: {app_data.get('first_name', '')} {app_data.get('last_name', '')}")
+            status_report.append(f"Loan Amount: ${app_data.get('loan_amount', 0):,.0f}")
+            status_report.append(f"Property: {app_data.get('property_address', 'Not specified')}")
             
             # Use stored status for processing
             effective_status = stored_status
@@ -212,12 +214,12 @@ def track_application_status(tool_input: str) -> str:
                     if milestone_reached:
                         notes += f", Milestone: {milestone_reached}"
                     
-                    update_success = update_application_status(application_id, new_status, notes)
+                    update_success, update_message = update_application_status(application_id, new_status, notes)
                     
                     if update_success:
                         status_report.append(f"✅ AGENTIC UPDATE: Status updated to {new_status}")
                     else:
-                        status_report.append(f"⚠️ UPDATE WARNING: Failed to update status")
+                        status_report.append(f"⚠️ UPDATE WARNING: Failed to update status - {update_message}")
                         
                 except Exception as update_error:
                     logger.warning(f"Agentic status update failed: {update_error}")
@@ -284,10 +286,11 @@ def track_application_status(tool_input: str) -> str:
             # Provide status history from agentic storage
             status_report.append(f"\n📚 STATUS HISTORY:")
             
-            if app_retrieval.found and app_retrieval.status_history:
+            if app_found and app_data.get('status_history'):
                 # Use real stored history
                 status_report.append("Real Application History:")
-                for i, history_item in enumerate(reversed(app_retrieval.status_history)):
+                status_history = app_data.get('status_history', [])
+                for i, history_item in enumerate(reversed(status_history)):
                     timestamp = history_item.get('timestamp', 'Unknown')
                     status = history_item.get('status', 'Unknown')
                     agent = history_item.get('agent_name', 'System')
