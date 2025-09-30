@@ -17,9 +17,9 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-def parse_appraisal_report_info(report_info: str) -> Dict[str, Any]:
-    """Extract appraisal report information from natural language description."""
-    import re
+def extract_appraisal_report_safely(report_info: str, parsed_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract appraisal report information using 12-factor compliant parsing."""
+    # 12-FACTOR COMPLIANT: String-based extraction (Factor 9: Compact Errors)
     
     # Initialize with safe defaults
     parsed = {
@@ -235,13 +235,14 @@ def review_appraisal_report(tool_input: str) -> str:
     """
     
     try:
-        # Use standardized parsing first, then custom parsing for tool-specific data
-        from agents.shared.input_parser import parse_mortgage_application
+        # 12-FACTOR COMPLIANT: Enhanced parser only (Factor 8: Own Your Control Flow)
+        from agents.shared.input_parser import parse_complete_mortgage_input
         
-        parsed_data = parse_mortgage_application(tool_input)
+        # Factor 1: Natural Language → Tool Calls - comprehensive parsing
+        parsed_data = parse_complete_mortgage_input(tool_input)
         
-        # Parse the natural language input with custom logic for appraisal-specific details
-        parsed_info = parse_appraisal_report_info(tool_input)
+        # Factor 4: Tools as Structured Outputs - extract appraisal report details safely
+        parsed_info = extract_appraisal_report_safely(tool_input, parsed_data)
         
         # Extract all the parameters
         property_address = parsed_info["property_address"]

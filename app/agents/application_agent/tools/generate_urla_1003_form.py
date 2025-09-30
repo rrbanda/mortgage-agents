@@ -88,23 +88,18 @@ def generate_urla_1003_form(tool_input: str) -> str:
     """
     
     try:
-        # Use standardized parsing first, then custom parsing for tool-specific data
-        from agents.shared.input_parser import parse_mortgage_application
-        import re
+        # 12-FACTOR COMPLIANT: Enhanced parser only (Factor 8: Own Your Control Flow)
+        from agents.shared.input_parser import parse_complete_mortgage_input
         
-        parsed_data = parse_mortgage_application(tool_input)
+        # Factor 1: Natural Language → Tool Calls - comprehensive parsing
+        parsed_data = parse_complete_mortgage_input(tool_input)
         
-        # Extract application ID from tool_input
-        app_match = re.search(r'(?:application|app):\s*([^,\s]+)', tool_input.lower())
-        if not app_match:
-            # Try to find APP_ pattern directly
-            app_match = re.search(r'(APP_[A-Z0-9_]+)', tool_input, re.IGNORECASE)
-        
-        if app_match:
-            application_id = app_match.group(1).strip()
-        else:
-            # If no clear pattern, use the whole input as application ID
-            application_id = tool_input.strip()
+        # Factor 4: Tools as Structured Outputs - safe application ID extraction
+        application_id = parsed_data.get("application_id")
+        if not application_id:
+            # Factor 9: Compact Errors - safe fallback with None protection
+            cleaned_input = str(tool_input).strip() if tool_input else "TEMP_URLA"
+            application_id = cleaned_input if cleaned_input else "TEMP_URLA"
         
         # Get application data from Neo4j
         app_data = get_application_data_from_neo4j(application_id)

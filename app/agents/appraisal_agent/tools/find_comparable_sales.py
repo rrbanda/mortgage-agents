@@ -18,9 +18,9 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-def parse_property_info(property_info: str) -> Dict[str, Any]:
-    """Extract property information from natural language description."""
-    import re
+def extract_property_info_safely(property_info: str, parsed_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract property information using 12-factor compliant parsing."""
+    # 12-FACTOR COMPLIANT: String-based extraction (Factor 9: Compact Errors)
     
     # Initialize with safe defaults
     parsed = {
@@ -37,55 +37,71 @@ def parse_property_info(property_info: str) -> Dict[str, Any]:
     
     info_lower = property_info.lower()
     
-    # Extract property address - look for common address patterns
-    address_patterns = [
-        r'(?:property|house|home)?\s*(?:at|address|located)?\s*([^,\n]+(?:,\s*[^,\n]+)*(?:,\s*[A-Z]{2})?)',
-        r'(\d+\s+[A-Za-z\s]+(?:st|ave|rd|dr|blvd|ct|ln|way|pl)\.?(?:,\s*[^,\n]+)*)',
-        r'((?:\d+\s+)?[A-Za-z\s]+(?:street|avenue|road|drive|boulevard|court|lane|way|place)(?:,\s*[^,\n]+)*)'
-    ]
+    # Enhanced address detection using enhanced parser and string methods
+    parsed["subject_property_address"] = parsed_data.get("address") or ""
+    if not parsed["subject_property_address"]:
+        if ' at ' in info_lower:
+            try:
+                start = info_lower.find(' at ') + 4
+                end = info_lower.find(',', start) if info_lower.find(',', start) != -1 else len(property_info)
+                address_candidate = property_info[start:end].strip()
+                if any(suffix in address_candidate.lower() for suffix in ['st', 'ave', 'rd', 'dr', 'blvd', 'way']):
+                    parsed["subject_property_address"] = address_candidate
+            except:
+                pass
     
-    for pattern in address_patterns:
-        address_match = re.search(pattern, property_info, re.IGNORECASE)
-        if address_match:
-            parsed["subject_property_address"] = address_match.group(1).strip()
-            break
+    # Enhanced square footage extraction (no regex)
+    if 'sq ft' in info_lower or 'sqft' in info_lower or 'square feet' in info_lower:
+        words = property_info.split()
+        for i, word in enumerate(words):
+            if any(sqft_term in word.lower() for sqft_term in ['sq', 'sqft', 'square']):
+                # Look for number before this word
+                for j in range(max(0, i-3), i):
+                    try:
+                        sqft_candidate = int(''.join(filter(str.isdigit, words[j])))
+                        if 500 <= sqft_candidate <= 8000:  # Reasonable range
+                            parsed["gross_living_area"] = sqft_candidate
+                            break
+                    except:
+                        continue
+                if parsed["gross_living_area"] != 2000:  # If found non-default
+                    break
     
-    # Extract square footage/living area
-    sqft_patterns = [
-        r'(\d{1,4})\s*(?:sq\s*ft|square\s*feet|sqft)',
-        r'(\d{1,4})\s*(?:square\s*foot|sq\s*foot)',
-        r'(?:living\s*area|gla|square\s*footage)\s*(?:is|of|:)?\s*(\d{1,4})'
-    ]
+    # Enhanced bedroom extraction (no regex) 
+    if 'bed' in info_lower or 'br' in info_lower:
+        words = property_info.split()
+        for i, word in enumerate(words):
+            if 'bed' in word.lower():
+                # Look for number before this word
+                for j in range(max(0, i-2), i):
+                    try:
+                        bed_candidate = int(''.join(filter(str.isdigit, words[j])))
+                        if 1 <= bed_candidate <= 8:  # Reasonable range
+                            parsed["bedrooms"] = bed_candidate
+                            break
+                    except:
+                        continue
+                if parsed["bedrooms"] != 3:  # If found non-default
+                    break
     
-    for pattern in sqft_patterns:
-        sqft_match = re.search(pattern, info_lower)
-        if sqft_match:
-            parsed["gross_living_area"] = int(sqft_match.group(1))
-            break
-    
-    # Extract bedrooms
-    bed_patterns = [
-        r'(\d+)\s*(?:bed|bedroom)s?',
-        r'(?:bed|bedroom)s?\s*(?:is|:)?\s*(\d+)'
-    ]
-    
-    for pattern in bed_patterns:
-        bed_match = re.search(pattern, info_lower)
-        if bed_match:
-            parsed["bedrooms"] = int(bed_match.group(1))
-            break
-    
-    # Extract bathrooms
-    bath_patterns = [
-        r'(\d+(?:\.\d+)?)\s*(?:bath|bathroom)s?',
-        r'(?:bath|bathroom)s?\s*(?:is|:)?\s*(\d+(?:\.\d+)?)'
-    ]
-    
-    for pattern in bath_patterns:
-        bath_match = re.search(pattern, info_lower)
-        if bath_match:
-            parsed["bathrooms"] = float(bath_match.group(1))
-            break
+    # Enhanced bathroom extraction (no regex)
+    if 'bath' in info_lower:
+        words = property_info.split()
+        for i, word in enumerate(words):
+            if 'bath' in word.lower():
+                # Look for number before this word
+                for j in range(max(0, i-2), i):
+                    try:
+                        bath_text = ''.join(filter(lambda x: x.isdigit() or x == '.', words[j]))
+                        if bath_text:
+                            bath_candidate = float(bath_text)
+                            if 0.5 <= bath_candidate <= 8.0:  # Reasonable range
+                                parsed["bathrooms"] = bath_candidate
+                                break
+                    except:
+                        continue
+                if parsed["bathrooms"] != 2.0:  # If found non-default
+                    break
     
     # Extract year built
     year_patterns = [
@@ -94,10 +110,10 @@ def parse_property_info(property_info: str) -> Dict[str, Any]:
         r'(19\d{2}|20\d{2})\s*(?:built|construction)'
     ]
     
-    for pattern in year_patterns:
-        year_match = re.search(pattern, info_lower)
-        if year_match:
-            parsed["year_built"] = int(year_match.group(1))
+    # String-based year built extraction (12-factor compliant)
+    for year in range(1900, 2026):
+        if str(year) in property_info and ('built' in info_lower or 'constructed' in info_lower):
+            parsed["year_built"] = year
             break
     
     # Extract property type
@@ -116,17 +132,32 @@ def parse_property_info(property_info: str) -> Dict[str, Any]:
         r'lot\s*(?:size|:)\s*(\d+(?:\.\d+)?)\s*acres?'
     ]
     
-    for pattern in lot_patterns:
-        lot_match = re.search(pattern, info_lower)
-        if lot_match:
-            parsed["lot_size"] = float(lot_match.group(1))
-            break
+    # String-based lot size extraction (12-factor compliant)
+    if 'acre' in info_lower:
+        words = property_info.split()
+        for word in words:
+            try:
+                # Extract decimal numbers from words near 'acre'
+                lot_candidate = float(''.join(filter(lambda x: x.isdigit() or x == '.', word)))
+                if 0.1 <= lot_candidate <= 10.0:
+                    parsed["lot_size"] = lot_candidate
+                    break
+            except:
+                continue
     
     # Extract search preferences
     if 'radius' in info_lower:
-        radius_match = re.search(r'(\d+(?:\.\d+)?)\s*miles?\s*radius', info_lower)
-        if radius_match:
-            parsed["search_radius_miles"] = float(radius_match.group(1))
+        # String-based radius extraction (12-factor compliant)
+        if 'mile' in info_lower:
+            words = property_info.split()
+            for word in words:
+                try:
+                    radius_candidate = float(''.join(filter(lambda x: x.isdigit() or x == '.', word)))
+                    if 0.5 <= radius_candidate <= 5.0:
+                        parsed["search_radius_miles"] = radius_candidate
+                        break
+                except:
+                    continue
     
     return parsed
 
@@ -150,14 +181,14 @@ def find_comparable_sales(tool_input: str) -> str:
     """
     
     try:
-        # Use standardized parsing first, then custom parsing for tool-specific data
-        from agents.shared.input_parser import parse_mortgage_application
+        # 12-FACTOR COMPLIANT: Enhanced parser only (Factor 8: Own Your Control Flow)
+        from agents.shared.input_parser import parse_complete_mortgage_input
         
-        # Parse using standardized parser first
-        parsed_data = parse_mortgage_application(tool_input)
+        # Factor 1: Natural Language → Tool Calls - comprehensive parsing
+        parsed_data = parse_complete_mortgage_input(tool_input)
         
-        # Parse the natural language input with custom logic for property-specific details
-        parsed_info = parse_property_info(tool_input)
+        # Factor 4: Tools as Structured Outputs - extract property details safely
+        parsed_info = extract_property_info_safely(tool_input, parsed_data)
         
         # Extract all the parameters
         subject_property_address = parsed_info["subject_property_address"]

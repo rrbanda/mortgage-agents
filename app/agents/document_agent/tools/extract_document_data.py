@@ -1,7 +1,6 @@
 """Extract Document Data Tool - Neo4j Powered"""
 
 import json
-import re
 from datetime import datetime
 from typing import Dict, Optional
 from pydantic import BaseModel, Field
@@ -32,28 +31,42 @@ def extract_document_data(tool_input: str) -> str:
         # Parse document information from tool_input
         document_info = tool_input.strip()
         
-        # Use standardized parser for document information
-        from agents.shared.input_parser import parse_mortgage_application
-        import re
+        # 12-FACTOR COMPLIANT: Enhanced parser only (Factor 8: Own Your Control Flow)
+        from agents.shared.input_parser import parse_complete_mortgage_input
         
-        # Parse using standardized parser first
-        parsed_data = parse_mortgage_application(document_info)
+        # Factor 1: Natural Language → Tool Calls - comprehensive parsing
+        parsed_data = parse_complete_mortgage_input(document_info)
         info = document_info.lower()
         
-        # Extract document type
-        type_match = re.search(r'type:\s*([a-z_]+)', info)
-        document_type = type_match.group(1) if type_match else "paystub"
+        # Factor 4: Tools as Structured Outputs - safe parameter extraction
+        document_type = parsed_data.get("document_type") or "paystub"
         
-        # Extract borrower name (use parser first, regex fallback)
+        # Enhanced borrower name extraction (no regex - Factor 9: Compact Errors)
         if parsed_data.get("first_name") and parsed_data.get("last_name"):
             borrower_name = f"{parsed_data['first_name']} {parsed_data['last_name']}"
         else:
-            name_match = re.search(r'(?:content:|borrower:)\s*([a-z]+\s+[a-z]+)', info)
-            borrower_name = name_match.group(1).title() if name_match else "John Smith"
+            # String-based name extraction
+            borrower_name = "John Smith"  # Safe default
+            if 'borrower:' in info:
+                try:
+                    start = info.find('borrower:') + 9
+                    end = info.find(',', start) if info.find(',', start) != -1 else len(info)
+                    name_candidate = document_info[start:end].strip().title()
+                    # Basic validation - should be 2-3 words, alphabetic
+                    if 2 <= len(name_candidate.split()) <= 3 and name_candidate.replace(' ', '').isalpha():
+                        borrower_name = name_candidate
+                except:
+                    pass
         
-        # Extract document content (simplified)
-        content_match = re.search(r'content:\s*(.+)', info)
-        document_content = content_match.group(1) if content_match else info
+        # Enhanced content extraction (no regex - Factor 9: Compact Errors)
+        if 'content:' in info:
+            try:
+                start = info.find('content:') + 8
+                document_content = document_info[start:].strip()
+            except:
+                document_content = info
+        else:
+            document_content = info
         
         # Get rules from Neo4j
         # Initialize database connection with robust error handling

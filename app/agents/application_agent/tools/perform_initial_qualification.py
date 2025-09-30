@@ -32,125 +32,8 @@ def parse_neo4j_rule(rule_dict: Dict[str, Any]) -> Dict[str, Any]:
     return parsed_rule
 
 
-def parse_borrower_info(borrower_info: str) -> Dict[str, Any]:
-    """Extract key financial information from natural language borrower description."""
-    import re
-    
-    # Initialize with safe defaults
-    parsed = {
-        "credit_score": 650,  # Default middle credit score
-        "monthly_gross_income": 5000.0,
-        "monthly_debts": 500.0, 
-        "liquid_assets": 20000.0,
-        "employment_years": 2.0,
-        "employment_type": "w2",
-        "loan_amount": 300000.0,
-        "property_value": 375000.0,  # 20% down assumption
-        "down_payment": 60000.0,  # 20% down assumption
-        "property_type": "single_family_detached",
-        "occupancy_type": "primary_residence", 
-        "loan_purpose": "purchase",
-        "application_id": "TEMP_QUALIFICATION",
-        "first_time_buyer": False,
-        "military_service": False,
-        "rural_property": False,
-        "bankruptcy_history": False,
-        "foreclosure_history": False,
-        "collections_amount": 0.0,
-        "late_payments_12_months": 0
-    }
-    
-    info_lower = borrower_info.lower()
-    
-    # Extract credit score
-    credit_match = re.search(r'credit\s*(?:score)?\s*(?:is|of)?\s*(\d{3})', info_lower)
-    if credit_match:
-        parsed["credit_score"] = int(credit_match.group(1))
-    
-    # Extract monthly income - look for monthly first, then annual
-    monthly_income_match = re.search(r'(?:monthly\s*)?income\s*(?:is|of)?\s*\$?([0-9,]+)(?:\s*/?\s*month)?', info_lower)
-    annual_income_match = re.search(r'(?:annual|yearly)\s*income\s*(?:is|of)?\s*\$?([0-9,]+)', info_lower)
-    salary_match = re.search(r'salary\s*(?:is|of)?\s*\$?([0-9,]+)', info_lower)
-    
-    if monthly_income_match:
-        parsed["monthly_gross_income"] = float(monthly_income_match.group(1).replace(',', ''))
-    elif annual_income_match:
-        annual_income = float(annual_income_match.group(1).replace(',', ''))
-        parsed["monthly_gross_income"] = annual_income / 12
-    elif salary_match:
-        # Assume salary is annual
-        annual_salary = float(salary_match.group(1).replace(',', ''))
-        parsed["monthly_gross_income"] = annual_salary / 12
-    
-    # Extract loan amount
-    loan_match = re.search(r'loan\s*(?:amount|for)?\s*(?:is|of)?\s*\$?([0-9,]+)', info_lower)
-    # More flexible home price matching
-    home_price_match = re.search(r'(?:(?:home|house|property)\s*(?:price|cost|value)?\s*(?:is|of)?\s*\$?([0-9,]+)|(?:looking\s*at|buying)\s*(?:a\s*)?\$?([0-9,]+)\s*(?:home|house|property))', info_lower)
-    
-    if loan_match:
-        parsed["loan_amount"] = float(loan_match.group(1).replace(',', ''))
-    elif home_price_match:
-        # Handle multiple capture groups
-        property_value = None
-        for group in home_price_match.groups():
-            if group:
-                property_value = float(group.replace(',', ''))
-                break
-        parsed["property_value"] = property_value
-        # Assume 20% down payment
-        parsed["loan_amount"] = property_value * 0.8
-        parsed["down_payment"] = property_value * 0.2
-    
-    # Extract down payment
-    down_payment_match = re.search(r'(?:down\s*payment|down)\s*(?:is|of)?\s*\$?([0-9,]+)', info_lower)
-    down_percent_match = re.search(r'(\d+)%\s*down', info_lower)
-    
-    if down_payment_match:
-        parsed["down_payment"] = float(down_payment_match.group(1).replace(',', ''))
-        # Calculate property value if not already set
-        if parsed["property_value"] == 375000.0:  # default value
-            parsed["property_value"] = parsed["loan_amount"] + parsed["down_payment"]
-    elif down_percent_match:
-        down_percent = float(down_percent_match.group(1)) / 100
-        if parsed["property_value"] > 375000.0 or loan_match:  # We have property value or loan amount
-            if parsed["property_value"] == 375000.0:  # Use loan amount
-                parsed["property_value"] = parsed["loan_amount"] / (1 - down_percent)
-            parsed["down_payment"] = parsed["property_value"] * down_percent
-            parsed["loan_amount"] = parsed["property_value"] - parsed["down_payment"]
-    
-    # Extract monthly debts
-    debt_match = re.search(r'(?:monthly\s*)?debt(?:s)?\s*(?:is|of)?\s*\$?([0-9,]+)', info_lower)
-    if debt_match:
-        parsed["monthly_debts"] = float(debt_match.group(1).replace(',', ''))
-    
-    # Extract assets/savings
-    assets_match = re.search(r'(?:assets?|savings?|cash)\s*(?:is|of)?\s*\$?([0-9,]+)', info_lower)
-    if assets_match:
-        parsed["liquid_assets"] = float(assets_match.group(1).replace(',', ''))
-    
-    # Extract employment information
-    if 'self employed' in info_lower or 'self-employed' in info_lower:
-        parsed["employment_type"] = "self_employed"
-    elif 'contract' in info_lower:
-        parsed["employment_type"] = "contract"
-    
-    employment_match = re.search(r'(\d+)\s*years?\s*(?:employed|job|work)', info_lower)
-    if employment_match:
-        parsed["employment_years"] = float(employment_match.group(1))
-    
-    # Extract special conditions
-    if 'first time' in info_lower or 'first-time' in info_lower:
-        parsed["first_time_buyer"] = True
-    if 'military' in info_lower or 'veteran' in info_lower or 'va loan' in info_lower:
-        parsed["military_service"] = True
-    if 'rural' in info_lower or 'usda' in info_lower:
-        parsed["rural_property"] = True
-    if 'bankruptcy' in info_lower:
-        parsed["bankruptcy_history"] = True
-    if 'foreclosure' in info_lower:
-        parsed["foreclosure_history"] = True
-    
-    return parsed
+# REMOVED: parse_borrower_info function completely eliminated 
+# All parsing now handled by parse_complete_mortgage_input (12-Factor Compliant)
 
 
 @tool
@@ -172,36 +55,39 @@ def perform_initial_qualification(tool_input: str) -> str:
     """
     
     try:
-        # Use standardized parsing first, then custom parsing for tool-specific data
-        from agents.shared.input_parser import parse_mortgage_application
+        # 12-FACTOR COMPLIANT: Use only enhanced parser (Factor 1: Natural Language → Tool Calls)
+        from agents.shared.input_parser import parse_complete_mortgage_input
         
-        # Parse using standardized parser first
-        parsed_data = parse_mortgage_application(tool_input)
+        # Single parsing approach - no hybrid complexity (Factor 8: Own Your Control Flow)
+        parsed_data = parse_complete_mortgage_input(tool_input)
         
-        # Parse the natural language input with custom logic for borrower-specific details
-        parsed_info = parse_borrower_info(tool_input)
+        # Factor 4: Tools as Structured Outputs - SAFE parameter extraction with None protection
+        credit_score = parsed_data.get("credit_score") or 650  
+        monthly_gross_income = parsed_data.get("monthly_income") or 5000.0
+        monthly_debts = parsed_data.get("monthly_debts") or 500.0
+        liquid_assets = parsed_data.get("liquid_assets") or 20000.0
+        employment_years = parsed_data.get("employment_years") or 2.0  
+        employment_type = parsed_data.get("employment_type") or "w2"
+        loan_amount = parsed_data.get("loan_amount") or 300000.0
+        property_value = parsed_data.get("property_value") or 375000.0
+        down_payment = parsed_data.get("down_payment") or 60000.0
+        property_type = parsed_data.get("property_type") or "single_family_detached"
+        occupancy_type = parsed_data.get("occupancy_type") or "primary_residence"
+        loan_purpose = parsed_data.get("loan_purpose") or "purchase"
+        application_id = parsed_data.get("application_id", "TEMP_QUALIFICATION")
+        first_time_buyer = parsed_data.get("first_time_buyer", False)
+        military_service = parsed_data.get("military_service", False)
+        rural_property = parsed_data.get("rural_property", False)
+        bankruptcy_history = False  # Default
+        foreclosure_history = False  # Default
+        collections_amount = 0.0  # Default
+        late_payments_12_months = 0  # Default
         
-        # Extract all the parameters
-        credit_score = parsed_info["credit_score"]
-        monthly_gross_income = parsed_info["monthly_gross_income"]  
-        monthly_debts = parsed_info["monthly_debts"]
-        liquid_assets = parsed_info["liquid_assets"]
-        employment_years = parsed_info["employment_years"]
-        employment_type = parsed_info["employment_type"]
-        loan_amount = parsed_info["loan_amount"]
-        property_value = parsed_info["property_value"]
-        down_payment = parsed_info["down_payment"]
-        property_type = parsed_info["property_type"]
-        occupancy_type = parsed_info["occupancy_type"]
-        loan_purpose = parsed_info["loan_purpose"]
-        application_id = parsed_info["application_id"]
-        first_time_buyer = parsed_info["first_time_buyer"]
-        military_service = parsed_info["military_service"]
-        rural_property = parsed_info["rural_property"]
-        bankruptcy_history = parsed_info["bankruptcy_history"]
-        foreclosure_history = parsed_info["foreclosure_history"]
-        collections_amount = parsed_info["collections_amount"]
-        late_payments_12_months = parsed_info["late_payments_12_months"]
+        # Smart calculation if property_value not extracted but loan_amount and down_payment were
+        if (property_value == 375000.0 and 
+            loan_amount is not None and loan_amount > 0 and 
+            down_payment is not None and down_payment > 0):
+            property_value = loan_amount + down_payment
         
         # Initialize Neo4j connection with robust error handling
         if not initialize_connection():
@@ -225,12 +111,19 @@ def perform_initial_qualification(tool_input: str) -> str:
             result = session.run(qualification_query)
             qualification_rules = [parse_neo4j_rule(dict(record['rule'])) for record in result]
         
-        # Calculate key ratios
-        ltv = (loan_amount / property_value * 100) if property_value > 0 else 0
-        down_payment_pct = (down_payment / property_value * 100) if property_value > 0 else 0
-        front_end_dti = ((loan_amount * 0.005) / monthly_gross_income * 100) if monthly_gross_income > 0 else 0  # Estimated
-        back_end_dti = ((monthly_debts + (loan_amount * 0.005)) / monthly_gross_income * 100) if monthly_gross_income > 0 else 0
-        debt_to_income = (monthly_debts / monthly_gross_income * 100) if monthly_gross_income > 0 else 0
+        # Calculate key ratios with complete None-safety (Factor 9: Compact Errors)
+        # Ensure all values are numbers before calculations
+        safe_loan_amount = loan_amount or 0.0
+        safe_property_value = property_value or 1.0  # Avoid division by zero
+        safe_monthly_income = monthly_gross_income or 1.0  # Avoid division by zero  
+        safe_monthly_debts = monthly_debts or 0.0
+        safe_down_payment = down_payment or 0.0
+        
+        ltv = (safe_loan_amount / safe_property_value * 100) if safe_property_value > 0 else 0
+        down_payment_pct = (safe_down_payment / safe_property_value * 100) if safe_property_value > 0 else 0
+        front_end_dti = ((safe_loan_amount * 0.005) / safe_monthly_income * 100) if safe_monthly_income > 0 else 0
+        back_end_dti = ((safe_monthly_debts + (safe_loan_amount * 0.005)) / safe_monthly_income * 100) if safe_monthly_income > 0 else 0
+        debt_to_income = (safe_monthly_debts / safe_monthly_income * 100) if safe_monthly_income > 0 else 0
         
         # Generate qualification report
         qualification_report = []
@@ -241,18 +134,18 @@ def perform_initial_qualification(tool_input: str) -> str:
         qualification_report.append(f"\n📋 APPLICATION SUMMARY:")
         qualification_report.append(f"Application ID: {application_id}")
         qualification_report.append(f"Loan Purpose: {loan_purpose.replace('_', ' ').title()}")
-        qualification_report.append(f"Loan Amount: ${loan_amount:,.2f}")
-        qualification_report.append(f"Property Value: ${property_value:,.2f}")
-        qualification_report.append(f"Down Payment: ${down_payment:,.2f} ({down_payment_pct:.1f}%)")
+        qualification_report.append(f"Loan Amount: ${safe_loan_amount:,.2f}")
+        qualification_report.append(f"Property Value: ${safe_property_value:,.2f}")
+        qualification_report.append(f"Down Payment: ${safe_down_payment:,.2f} ({down_payment_pct:.1f}%)")
         qualification_report.append(f"LTV Ratio: {ltv:.1f}%")
         
         # Borrower Profile
         qualification_report.append(f"\n👤 BORROWER PROFILE:")
         qualification_report.append(f"Credit Score: {credit_score}")
-        qualification_report.append(f"Monthly Income: ${monthly_gross_income:,.2f}")
-        qualification_report.append(f"Monthly Debts: ${monthly_debts:,.2f}")
+        qualification_report.append(f"Monthly Income: ${safe_monthly_income:,.2f}")
+        qualification_report.append(f"Monthly Debts: ${safe_monthly_debts:,.2f}")
         qualification_report.append(f"DTI Ratio: {debt_to_income:.1f}%")
-        qualification_report.append(f"Liquid Assets: ${liquid_assets:,.2f}")
+        qualification_report.append(f"Liquid Assets: ${liquid_assets or 0:,.2f}")
         qualification_report.append(f"Employment: {employment_type.replace('_', ' ').title()} ({employment_years} years)")
         
         # Special Considerations

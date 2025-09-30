@@ -79,31 +79,25 @@ def check_application_completeness(tool_input: str) -> str:
     """
     
     try:
-        # Use standardized parsing first, then custom parsing for tool-specific data
-        from agents.shared.input_parser import parse_mortgage_application
-        import re
+        # 12-FACTOR COMPLIANT: Enhanced parser only (Factor 8: Own Your Control Flow)
+        from agents.shared.input_parser import parse_complete_mortgage_input
         
-        parsed_data = parse_mortgage_application(tool_input)
-        input_lower = tool_input.lower()
+        # Factor 1: Natural Language → Tool Calls - comprehensive parsing
+        parsed_data = parse_complete_mortgage_input(tool_input)
+        input_lower = tool_input.lower()  # Keep for boolean flag detection
         
-        # Extract basic parameters with defaults
-        app_match = re.search(r'(?:application|app):\s*([^,\s]+)', input_lower)
-        application_id = app_match.group(1).strip() if app_match else "TEMP_CHECK"
+        # Factor 4: Tools as Structured Outputs - safe parameter extraction with None protection
+        application_id = parsed_data.get("application_id") or "TEMP_CHECK"
+        loan_purpose = parsed_data.get("loan_purpose") or "purchase"  
+        employment_type = parsed_data.get("employment_type") or "w2"
+        property_type = parsed_data.get("property_type") or "single_family_detached"
+        occupancy_type = parsed_data.get("occupancy_type") or "primary_residence"
         
-        loan_match = re.search(r'loan:\s*([^,\s]+)', input_lower)
-        loan_purpose = loan_match.group(1).strip() if loan_match else "purchase"
-        
-        emp_match = re.search(r'employment:\s*([^,\s]+)', input_lower)
-        employment_type = emp_match.group(1).strip() if emp_match else "w2"
-        
-        # Boolean flags with defaults (False for missing items, True for provided)
-        has_co_borrower = "co-borrower: yes" in input_lower or "co-borrower: true" in input_lower
-        
-        prop_match = re.search(r'property:\s*([^,\s]+)', input_lower)
-        property_type = prop_match.group(1).strip() if prop_match else "single_family_detached"
-        
-        occ_match = re.search(r'occupancy:\s*([^,\s]+)', input_lower)
-        occupancy_type = occ_match.group(1).strip() if occ_match else "primary_residence"
+        # Enhanced boolean flag detection (no regex - Factor 9: Compact Errors)
+        has_co_borrower = (parsed_data.get("co_borrower", False) or 
+                          "co-borrower: yes" in input_lower or 
+                          "co-borrower: true" in input_lower or
+                          "has co-borrower" in input_lower)
         
         # Documentation status - assume complete unless specifically mentioned as missing
         personal_info_complete = "personal info missing" not in input_lower

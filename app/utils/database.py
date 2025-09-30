@@ -340,9 +340,11 @@ def store_application_data(app_data: MortgageApplicationData) -> Tuple[bool, str
         """
         
         result = connection.execute_query(query, {"app_data": data_dict})
-        stored_record = result.single()
+        # Convert result to avoid consumption errors
+        records = list(result)
         
-        if stored_record:
+        if records:
+            stored_record = records[0]  # Get first record
             stored_id = stored_record["stored_id"]
             logger.info(f"Successfully stored mortgage application: {stored_id}")
             return True, f"Application {stored_id} stored successfully in mortgage database"
@@ -378,9 +380,11 @@ def get_application_data(application_id: str) -> Tuple[bool, Any]:
         """
         
         result = connection.execute_query(query, {"app_id": application_id})
-        record = result.single()
+        # Convert result to avoid consumption errors
+        records = list(result)
         
-        if record:
+        if records:
+            record = records[0]  # Get first record
             app_data = dict(record["app"])
             logger.info(f"Retrieved mortgage application: {application_id}")
             return True, app_data
@@ -428,9 +432,11 @@ def update_application_status(application_id: str, new_status: str, notes: str =
             "new_status": new_status,
             "notes": notes
         })
-        record = result.single()
+        # Convert result to avoid consumption errors
+        records = list(result)
         
-        if record:
+        if records:
+            record = records[0]  # Get first record
             updated_id = record["updated_id"]
             status = record["status"]
             logger.info(f"Updated application {updated_id} status to: {status}")

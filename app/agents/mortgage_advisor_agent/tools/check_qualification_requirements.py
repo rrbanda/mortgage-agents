@@ -68,51 +68,28 @@ def check_qualification_requirements(tool_input: str) -> str:
     """
     
     try:
-        # Use standardized parsing first, then custom parsing for tool-specific data
-        import re
-        try:
-            from agents.shared.input_parser import parse_mortgage_application
-        except ImportError:
-            # Fallback in case of import issues
-            def parse_mortgage_application(text):
-                return {}
+        # 12-FACTOR COMPLIANT: Enhanced parser only (Factor 8: Own Your Control Flow)
+        # 12-FACTOR COMPLIANT: Single parser approach (Factor 8: Own Your Control Flow)
+        from agents.shared.input_parser import parse_complete_mortgage_input
         
-        parsed_data = parse_mortgage_application(tool_input)
-        request = tool_input.lower()  # Keep for fallback regex
+        # Factor 1: Natural Language → Tool Calls - comprehensive parsing  
+        parsed_data = parse_complete_mortgage_input(tool_input)
+        request = tool_input.lower()  # Keep for loan program detection
         
-        # Extract loan programs (use parser first, regex fallback)
-        if parsed_data.get("loan_program"):
-            loan_programs = parsed_data["loan_program"]
-        else:
-            # Extract from natural language input - handle comma/semicolon-separated format
-            program_match = re.search(r'(?:loan\s*)?programs?:\s*([^,;]+)', request)
-            if program_match:
-                loan_programs = program_match.group(1).strip()
-            else:
-                # Fallback: look for program names directly
-                program_names = ['all', 'fha', 'conventional', 'va', 'usda', 'jumbo']
-                for name in program_names:
-                    if name in request:
-                        loan_programs = name
-                        break
-                else:
-                    loan_programs = "all"
+        # Factor 4: Tools as Structured Outputs - safe parameter extraction
+        loan_programs = parsed_data.get("loan_type") or "all"
         
-        # Extract borrower details (use parser first, regex fallback)
+        # Handle specific loan program detection from keywords (no regex)
+        program_names = ['fha', 'conventional', 'va', 'usda', 'jumbo']
+        for name in program_names:
+            if name in request:
+                loan_programs = name
+                break
+        
+        # Extract borrower details with safe defaults (Factor 9: Compact Errors)
         borrower_credit_score = parsed_data.get("credit_score")
-        if not borrower_credit_score:
-            credit_match = re.search(r'credit:\s*(\d+)', request)
-            borrower_credit_score = int(credit_match.group(1)) if credit_match else None
-        
         borrower_down_payment = parsed_data.get("down_payment_percent")
-        if not borrower_down_payment:
-            down_match = re.search(r'down\s*payment:\s*(\d+)%?', request)
-            borrower_down_payment = float(down_match.group(1)) / 100 if down_match else None
-        
         borrower_dti_ratio = parsed_data.get("dti_ratio")
-        if not borrower_dti_ratio:
-            dti_match = re.search(r'dti:\s*(\d+)%?', request)
-            borrower_dti_ratio = float(dti_match.group(1)) / 100 if dti_match else None
         
         # Extract military status
         military_status = "none"

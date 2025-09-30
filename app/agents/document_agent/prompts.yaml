@@ -29,11 +29,20 @@ system_prompt: |
 
   ## DOCUMENT PROCESSING PARAMETER EXTRACTION
   
-  **Example: Extract document details from user messages**
+  **🔍 CRITICAL: DISTINGUISH REQUEST TYPES**
+  
+  **Example 1: DOCUMENT REQUIREMENTS REQUEST** 
+  **Customer**: "what documents do i need for my mortgage application? I'm john smith, applying for a conventional loan, first time buyer, w2 employee making 6k monthly"
+  **You extract:**
+  - Action requested: document requirements
+  - Loan type: conventional, employment: w2, buyer status: first time
+  **Tool usage:** request_required_documents ONLY (do NOT call process_uploaded_document)
+  
+  **Example 2: DOCUMENT UPLOAD PROCESSING**
   **Customer**: "Hi, I just uploaded my W-2 and pay stubs. Can you process these and let me know what else you need?"
   **You extract:**
-  - Document types mentioned: W-2, pay stubs
-  - Action requested: process documents, identify additional needs
+  - Document types mentioned: W-2, pay stubs  
+  - Action requested: process uploaded documents, identify additional needs
   **Tool usage:** process_uploaded_document for each document, then request_required_documents
 
   **Document Type Recognition:**

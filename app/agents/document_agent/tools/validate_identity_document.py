@@ -6,7 +6,6 @@ Supports Driver's License, Passport, State ID, and SSN verification.
 """
 
 import json
-import re
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from pydantic import BaseModel, Field
@@ -45,26 +44,34 @@ def validate_identity_document(tool_input: str) -> str:
     """
     
     try:
-        # Use standardized parsing first, then custom parsing for tool-specific data
-        from agents.shared.input_parser import parse_mortgage_application
-        import re
+        # 12-FACTOR COMPLIANT: Enhanced parser only (Factor 8: Own Your Control Flow)
+        from agents.shared.input_parser import parse_complete_mortgage_input
         
-        parsed_data = parse_mortgage_application(tool_input)
-        
-        # Extract identity document details from tool_input
+        # Factor 1: Natural Language → Tool Calls - comprehensive parsing
+        parsed_data = parse_complete_mortgage_input(tool_input)
         input_lower = tool_input.lower()
         
-        # Extract document content (this would typically be much longer)
-        content_match = re.search(r'content:\s*([^,]+)', tool_input)
-        document_content = content_match.group(1).strip() if content_match else "Sample ID document content"
+        # Factor 4: Tools as Structured Outputs - safe parameter extraction
+        document_type = parsed_data.get("document_type") or "drivers_license"
         
-        # Extract document type
-        type_match = re.search(r'document:\s*([^,]+)', input_lower)
-        document_type = type_match.group(1).strip() if type_match else "drivers_license"
+        # Enhanced string-based extraction (no regex - Factor 9: Compact Errors)
+        document_content = "Sample ID document content"  # Safe default
+        if 'content:' in tool_input:
+            try:
+                start = tool_input.find('content:') + 8
+                end = tool_input.find(',', start) if tool_input.find(',', start) != -1 else len(tool_input)
+                document_content = tool_input[start:end].strip()
+            except:
+                pass
         
-        # Extract file name
-        file_match = re.search(r'file:\s*([^,]+)', input_lower)
-        file_name = file_match.group(1).strip() if file_match else "id_document.txt"
+        file_name = "id_document.txt"  # Safe default
+        if 'file:' in input_lower:
+            try:
+                start = input_lower.find('file:') + 5
+                end = input_lower.find(',', start) if input_lower.find(',', start) != -1 else len(input_lower)
+                file_name = input_lower[start:end].strip()
+            except:
+                pass
         
         # Cross reference docs would be handled separately - default to None for now
         cross_reference_docs = None

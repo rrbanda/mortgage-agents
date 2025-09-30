@@ -44,30 +44,40 @@ def request_required_documents(tool_input: str) -> str:
     """
     
     try:
-        # Use standardized parsing first, then custom parsing for tool-specific data
-        from agents.shared.input_parser import parse_mortgage_application
-        import re
+        # 12-FACTOR COMPLIANT: Enhanced parser only (Factor 8: Own Your Control Flow)
+        from agents.shared.input_parser import parse_complete_mortgage_input
         
-        parsed_data = parse_mortgage_application(tool_input)
+        # Factor 1: Natural Language → Tool Calls - comprehensive parsing
+        parsed_data = parse_complete_mortgage_input(tool_input)
+        input_lower = tool_input.lower()  # Keep for document extraction
         
-        # Extract document request details from tool_input
-        input_lower = tool_input.lower()
+        # Factor 4: Tools as Structured Outputs - safe parameter extraction
+        application_id = parsed_data.get("application_id") or "APP_UNKNOWN"
+        loan_program = parsed_data.get("loan_type")
         
-        # Extract application ID
-        app_match = re.search(r'application:\s*([^,]+)', input_lower)
-        application_id = app_match.group(1).strip() if app_match else "APP_UNKNOWN"
-        
-        # Extract loan program
-        loan_match = re.search(r'loan\s*program:\s*([^,]+)', input_lower)
-        loan_program = loan_match.group(1).strip() if loan_match else None
-        
-        # Extract missing documents (parse comma-separated list)
-        missing_match = re.search(r'missing\s*documents?:\s*([^,]+(?:,\s*[^,]+)*)', input_lower)
-        if missing_match:
-            missing_docs_str = missing_match.group(1).strip()
-            missing_documents = [doc.strip() for doc in missing_docs_str.split(',')]
-        else:
-            missing_documents = None
+        # Enhanced missing documents extraction (no regex - Factor 9: Compact Errors)
+        missing_documents = None
+        if 'missing documents:' in input_lower or 'missing document:' in input_lower:
+            try:
+                # Find the start position after "missing documents:"
+                start_markers = ['missing documents:', 'missing document:']
+                start_pos = -1
+                for marker in start_markers:
+                    if marker in input_lower:
+                        start_pos = input_lower.find(marker) + len(marker)
+                        break
+                
+                if start_pos > 0:
+                    # Extract everything after the marker until end or next field
+                    remaining_text = tool_input[start_pos:].strip()
+                    # Split by comma and clean up
+                    if ',' in remaining_text:
+                        docs_part = remaining_text.split(',')[0] if remaining_text.count(',') == 1 else remaining_text
+                        missing_documents = [doc.strip() for doc in docs_part.split(',') if doc.strip()]
+                    else:
+                        missing_documents = [remaining_text.strip()] if remaining_text.strip() else None
+            except:
+                missing_documents = None
         
         # Initialize database connection with robust error handling
         if not initialize_connection():

@@ -18,9 +18,9 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-def parse_market_conditions_info(market_info: str) -> Dict[str, Any]:
-    """Extract market conditions information from natural language description."""
-    import re
+def extract_market_conditions_safely(market_info: str, parsed_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract market conditions information using 12-factor compliant parsing."""
+    # 12-FACTOR COMPLIANT: String-based extraction (Factor 9: Compact Errors)
     
     # Initialize with safe defaults
     parsed = {
@@ -38,17 +38,19 @@ def parse_market_conditions_info(market_info: str) -> Dict[str, Any]:
     
     info_lower = market_info.lower()
     
-    # Extract property address
-    address_patterns = [
-        r'(?:property|house|home|address)?\s*(?:at|address|located)?\s*([^,\n]+(?:,\s*[^,\n]+)*(?:,\s*[A-Z]{2})?)',
-        r'(\d+\s+[A-Za-z\s]+(?:st|ave|rd|dr|blvd|ct|ln|way|pl)\.?(?:,\s*[^,\n]+)*)',
-    ]
-    
-    for pattern in address_patterns:
-        address_match = re.search(pattern, market_info, re.IGNORECASE)
-        if address_match:
-            parsed["property_address"] = address_match.group(1).strip()
-            break
+    # Enhanced address detection using enhanced parser and string methods
+    parsed["property_address"] = parsed_data.get("address") or ""
+    if not parsed["property_address"]:
+        info_lower = market_info.lower()
+        if ' at ' in info_lower or 'for ' in info_lower:
+            try:
+                start = max(info_lower.find(' at ') + 4, info_lower.find('for ') + 4)
+                end = info_lower.find(',', start) if info_lower.find(',', start) != -1 else len(market_info)
+                address_candidate = market_info[start:end].strip()
+                if any(suffix in address_candidate.lower() for suffix in ['st', 'ave', 'rd', 'dr', 'blvd', 'way']):
+                    parsed["property_address"] = address_candidate
+            except:
+                pass
     
     # Extract property type
     if 'condo' in info_lower or 'condominium' in info_lower:
@@ -177,13 +179,14 @@ def evaluate_market_conditions(tool_input: str) -> str:
     """
     
     try:
-        # Use standardized parsing first, then custom parsing for tool-specific data
-        from agents.shared.input_parser import parse_mortgage_application
+        # 12-FACTOR COMPLIANT: Enhanced parser only (Factor 8: Own Your Control Flow)
+        from agents.shared.input_parser import parse_complete_mortgage_input
         
-        parsed_data = parse_mortgage_application(tool_input)
+        # Factor 1: Natural Language → Tool Calls - comprehensive parsing
+        parsed_data = parse_complete_mortgage_input(tool_input)
         
-        # Parse the natural language input with custom logic for market-specific details
-        parsed_info = parse_market_conditions_info(tool_input)
+        # Factor 4: Tools as Structured Outputs - extract market details safely
+        parsed_info = extract_market_conditions_safely(tool_input, parsed_data)
         
         # Extract all the parameters
         property_address = parsed_info["property_address"]

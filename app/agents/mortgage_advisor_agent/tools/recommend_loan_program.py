@@ -38,13 +38,12 @@ def recommend_loan_program(tool_input: str) -> str:
     """
     
     try:
-        # Use standardized parser for robust borrower information parsing
-        from agents.shared.input_parser import parse_mortgage_application
-        import re
+        # 12-FACTOR COMPLIANT: Enhanced parser only (Factor 8: Own Your Control Flow)
+        from agents.shared.input_parser import parse_complete_mortgage_input
         
-        # Parse using standardized parser (tool_input contains the borrower info)
-        parsed_data = parse_mortgage_application(tool_input)
-        borrower_info = tool_input  # Keep for fallback regex
+        # Factor 1: Natural Language → Tool Calls - comprehensive parsing
+        parsed_data = parse_complete_mortgage_input(tool_input)
+        borrower_info = tool_input  # Keep for keyword detection
         
         # Extract borrower details with fallbacks
         credit_score_int = parsed_data.get("credit_score") or 720
@@ -56,14 +55,14 @@ def recommend_loan_program(tool_input: str) -> str:
         
         monthly_debts_int = int(parsed_data.get("monthly_debts") or 850)
         
-        # Handle income (convert monthly to annual if needed)
-        info = borrower_info.lower()  # Make sure info is available for other parsing
+        # Factor 4: Tools as Structured Outputs - safe income extraction
+        info = borrower_info.lower()  # Keep for property type detection
         if parsed_data.get("monthly_income"):
             annual_income_int = int(parsed_data["monthly_income"] * 12)
+        elif parsed_data.get("annual_income"):
+            annual_income_int = int(parsed_data["annual_income"])
         else:
-            # Fallback to direct annual income parsing
-            income_match = re.search(r'income[:\s]*(\d+)', info)
-            annual_income_int = int(income_match.group(1)) if income_match else 95000
+            annual_income_int = 95000  # Safe default (Factor 9: Compact Errors)
         
         # Extract property type
         property_type = "primary_residence"

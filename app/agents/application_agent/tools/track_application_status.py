@@ -54,22 +54,16 @@ def track_application_status(tool_input: str) -> str:
     """
     
     try:
-        # Use standardized parsing first, then custom parsing for tool-specific data
-        from agents.shared.input_parser import parse_mortgage_application
-        import re
+        # 12-FACTOR COMPLIANT: Single parser approach (Factor 8: Own Your Control Flow)
+        from agents.shared.input_parser import parse_complete_mortgage_input
         
-        parsed_data = parse_mortgage_application(tool_input)
+        # Factor 1: Natural Language → Tool Calls - comprehensive parsing
+        parsed_data = parse_complete_mortgage_input(tool_input)
         
-        # Parse status request string
-        request = tool_input.lower()
-        
-        # Extract application ID
-        app_id_match = re.search(r'app(?:lication)?\s*([a-z0-9_]+)', request)
-        application_id = app_id_match.group(1).upper() if app_id_match else "APP_20250926_090605_JOH"
-        
-        # Extract current status
-        status_match = re.search(r'(?:current\s*status|status):\s*([a-z_]+)', request)
-        current_status = status_match.group(1).upper() if status_match else "RECEIVED"
+        # Factor 4: Tools as Structured Outputs - safe parameter extraction
+        application_id = parsed_data.get("application_id") or "APP_20250926_090605_JOH"
+        current_status = parsed_data.get("status_filter") or "RECEIVED"
+        request = tool_input.lower()  # Keep for action detection
         
         # Determine action
         if "check" in request or "track" in request:
@@ -81,9 +75,18 @@ def track_application_status(tool_input: str) -> str:
         else:
             requested_action = "check_status"
         
-        # Extract new status if updating
-        new_status_match = re.search(r'(?:update.*to|new\s*status|to)\s*([a-z_]+)', request)
-        new_status = new_status_match.group(1).upper() if new_status_match else None
+        # Extract new status if updating (12-Factor: using enhanced parser only)
+        new_status = None
+        if "update" in request or "change" in request:
+            # Try to extract status from parsed data
+            if parsed_data.get("loan_type"):  # Could be a status value
+                new_status = str(parsed_data.get("loan_type")).upper()
+            # Check for common status keywords in the original input
+            status_keywords = ["APPROVED", "DENIED", "PENDING", "REVIEW", "SUBMITTED", "RECEIVED", "PROCESSING"]
+            for keyword in status_keywords:
+                if keyword.lower() in tool_input.lower():
+                    new_status = keyword
+                    break
         
         # Set defaults
         status_notes = "Status update via agentic tool"

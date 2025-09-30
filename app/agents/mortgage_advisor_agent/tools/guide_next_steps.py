@@ -63,28 +63,28 @@ def guide_next_steps(tool_input: str) -> str:
     """
     
     try:
-        # Use standardized parsing first, then custom parsing for tool-specific data
-        from agents.shared.input_parser import parse_mortgage_application
-        import re
+        # 12-FACTOR COMPLIANT: Enhanced parser only (Factor 8: Own Your Control Flow)
+        from agents.shared.input_parser import parse_complete_mortgage_input
         
-        parsed_data = parse_mortgage_application(tool_input)
-        request = tool_input.lower()  # Keep for fallback regex
+        # Factor 1: Natural Language → Tool Calls - comprehensive parsing
+        parsed_data = parse_complete_mortgage_input(tool_input)
+        request = tool_input.lower()  # Keep for keyword detection
         
-        # Extract current stage
-        stage_match = re.search(r'stage:\s*([a-z_]+)', request)
-        current_stage = stage_match.group(1) if stage_match else "pre_qualification"
+        # Factor 4: Tools as Structured Outputs - safe parameter extraction
+        current_stage = parsed_data.get("status_filter") or "pre_qualification"
+        selected_loan_program = parsed_data.get("loan_type", "").upper() if parsed_data.get("loan_type") else None
+        borrower_status = "first_time"  # Safe default
+        priority_focus = "timeline"  # Safe default
         
-        # Extract loan program
-        loan_match = re.search(r'loan:\s*([a-z]+)', request)
-        selected_loan_program = loan_match.group(1).upper() if loan_match else None
-        
-        # Extract borrower status
-        status_match = re.search(r'status:\s*([a-z_]+)', request)
-        borrower_status = status_match.group(1) if status_match else "first_time"
-        
-        # Extract priority focus
-        focus_match = re.search(r'focus:\s*([a-z_]+)', request)
-        priority_focus = focus_match.group(1) if focus_match else "timeline"
+        # Enhanced keyword detection (no regex - Factor 9: Compact Errors)
+        if "application" in request:
+            current_stage = "application"
+        elif "processing" in request:
+            current_stage = "processing"
+        elif "underwriting" in request:
+            current_stage = "underwriting"
+        elif "closing" in request:
+            current_stage = "closing"
         
         # Initialize Neo4j connection
         if not initialize_connection():
@@ -95,7 +95,10 @@ def guide_next_steps(tool_input: str) -> str:
         current_stage_info = _get_current_stage_info(current_stage, connection)
         if not current_stage_info:
             available_stages = _get_available_stages(connection)
-            return f"❌ Stage '{current_stage}' not found in mortgage process data. Available stages: {', '.join(available_stages)}"
+            # Factor 9: Compact Errors - safe stage list joining with None protection
+            safe_stages = [str(stage) for stage in available_stages if stage is not None]
+            stages_list = ', '.join(safe_stages) if safe_stages else 'None available'
+            return f"❌ Stage '{current_stage}' not found in mortgage process data. Available stages: {stages_list}"
         
         # Get immediate next steps
         immediate_next_steps = _get_immediate_next_steps(current_stage, selected_loan_program, connection)
@@ -126,23 +129,31 @@ def guide_next_steps(tool_input: str) -> str:
         # Format comprehensive guidance as string response
         guidance_report = [
             "🎯 **PERSONALIZED MORTGAGE GUIDANCE**",
-            f"**Current Stage:** {current_stage.replace('_', ' ').title()}",
-            f"**Loan Program:** {selected_loan_program.upper() if selected_loan_program else 'Not Selected'}",
-            f"**Borrower Status:** {borrower_status.replace('_', ' ').title()}",
-            f"**Focus Area:** {priority_focus.replace('_', ' ').title()}",
+            f"**Current Stage:** {str(current_stage).replace('_', ' ').title() if current_stage else 'Unknown'}",
+            f"**Loan Program:** {str(selected_loan_program).upper() if selected_loan_program else 'Not Selected'}",
+            f"**Borrower Status:** {str(borrower_status).replace('_', ' ').title() if borrower_status else 'Unknown'}",
+            f"**Focus Area:** {str(priority_focus).replace('_', ' ').title() if priority_focus else 'General'}",
             "",
             "📋 **CURRENT STAGE OVERVIEW:**"
         ]
         
         if current_stage_info:
-            guidance_report.append(f"Description: {current_stage_info.get('description', 'Standard mortgage stage')}")
-            guidance_report.append(f"Total Steps: {current_stage_info.get('total_steps', 'N/A')}")
+            # Factor 9: Compact Errors - safe dictionary access with None protection
+            description = current_stage_info.get('description', 'Standard mortgage stage')
+            safe_description = str(description) if description is not None else 'Standard mortgage stage'
+            guidance_report.append(f"Description: {safe_description}")
+            
+            total_steps = current_stage_info.get('total_steps', 'N/A')
+            safe_total_steps = str(total_steps) if total_steps is not None else 'N/A'
+            guidance_report.append(f"Total Steps: {safe_total_steps}")
         
         guidance_report.append("\n⚡ **IMMEDIATE NEXT STEPS:**")
         if immediate_next_steps:
             for i, step in enumerate(immediate_next_steps[:5], 1):
                 step_desc = step.get('description', step.get('name', f'Step {i}'))
-                guidance_report.append(f"{i}. {step_desc}")
+                # Factor 9: Compact Errors - ensure step_desc is never None
+                safe_step_desc = str(step_desc) if step_desc else f'Step {i}'
+                guidance_report.append(f"{i}. {safe_step_desc}")
         else:
             guidance_report.append("• Continue with current stage requirements")
         
@@ -173,8 +184,10 @@ def guide_next_steps(tool_input: str) -> str:
                 if isinstance(tip, dict):
                     tip_text = tip.get('description', tip.get('action', 'Follow standard process'))
                 else:
-                    tip_text = str(tip)
-                guidance_report.append(f"• {tip_text}")
+                    tip_text = str(tip) if tip else 'Follow standard process'
+                # Factor 9: Compact Errors - safe tip handling
+                safe_tip_text = str(tip_text) if tip_text else 'Follow standard process'
+                guidance_report.append(f"• {safe_tip_text}")
         
         if program_specific_guidance:
             guidance_report.append(f"\n🎯 **{selected_loan_program.upper()} PROGRAM GUIDANCE:**")
@@ -182,17 +195,23 @@ def guide_next_steps(tool_input: str) -> str:
             if benefits:
                 guidance_report.append("**Key Benefits:**")
                 for benefit in benefits[:3]:
-                    guidance_report.append(f"• {benefit}")
+                    # Factor 9: Compact Errors - safe benefit handling
+                    safe_benefit = str(benefit) if benefit else "Benefit available"
+                    guidance_report.append(f"• {safe_benefit}")
             
             requirements = program_specific_guidance.get('key_requirements', [])
             if requirements:
                 guidance_report.append("**Key Requirements:**")
                 for req in requirements:
-                    guidance_report.append(f"• {req}")
+                    # Factor 9: Compact Errors - safe requirement handling  
+                    safe_req = str(req) if req else "Requirement applies"
+                    guidance_report.append(f"• {safe_req}")
         
         guidance_report.append(f"\n📅 **Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
-        return "\n".join(guidance_report)
+        # Factor 9: Compact Errors - safe string joining with None protection
+        safe_guidance_report = [str(item) for item in guidance_report if item is not None]
+        return "\n".join(safe_guidance_report)
         
     except Exception as e:
         logger.error(f"Error generating next steps guidance: {e}")

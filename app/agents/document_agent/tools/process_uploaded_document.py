@@ -46,34 +46,56 @@ def process_uploaded_document(tool_input: str) -> str:
     """
     
     try:
-        # Use standardized parsing first, then custom parsing for tool-specific data
-        from agents.shared.input_parser import parse_mortgage_application
-        import re
+        # 12-FACTOR COMPLIANT: Enhanced parser only (Factor 8: Own Your Control Flow)
+        from agents.shared.input_parser import parse_complete_mortgage_input
         
-        parsed_data = parse_mortgage_application(tool_input)
+        # Factor 1: Natural Language → Tool Calls - comprehensive parsing
+        parsed_data = parse_complete_mortgage_input(tool_input)
+        input_lower = tool_input.lower()  # Keep for keyword detection
         
-        # Extract document details from tool_input
-        input_lower = tool_input.lower()
+        # Factor 4: Tools as Structured Outputs - safe parameter extraction with None protection
+        document_content = None
+        file_name = None
+        document_type = parsed_data.get("document_type") or "unknown"
+        application_id = parsed_data.get("application_id")
         
-        # Extract document content (this would typically be much longer)
-        content_match = re.search(r'content:\s*([^,]+)', tool_input)
-        document_content = content_match.group(1).strip() if content_match else "Sample document content"
+        # Enhanced keyword-based extraction (no regex - Factor 9: Compact Errors)
+        if 'content:' in tool_input:
+            try:
+                content_start = tool_input.find('content:') + 8
+                content_end = tool_input.find(',', content_start)
+                if content_end == -1:
+                    content_end = len(tool_input)
+                document_content = tool_input[content_start:content_end].strip()
+            except:
+                document_content = "Sample document content"
+        else:
+            document_content = "Sample document content"
         
-        # Extract file name
-        file_match = re.search(r'file:\s*([^,]+)', input_lower)
-        file_name = file_match.group(1).strip() if file_match else "unknown_document.pdf"
+        if 'file:' in input_lower:
+            try:
+                file_start = input_lower.find('file:') + 5
+                file_end = input_lower.find(',', file_start)
+                if file_end == -1:
+                    file_end = len(input_lower)
+                file_name = input_lower[file_start:file_end].strip()
+            except:
+                file_name = "unknown_document.pdf"
+        else:
+            file_name = "unknown_document.pdf"
         
-        # Extract document type
-        type_match = re.search(r'document:\s*([^,]+)', input_lower)
-        document_type = type_match.group(1).strip() if type_match else "unknown"
-        
-        # Extract application ID
-        app_match = re.search(r'application:\s*([^,]+)', input_lower)
-        application_id = app_match.group(1).strip() if app_match else None
-        
-        # Extract file size
-        size_match = re.search(r'size:\s*(\d+)', input_lower)
-        file_size = int(size_match.group(1)) if size_match else 0
+        # Extract file size (no regex - Factor 9: Compact Errors)
+        file_size = 0
+        if 'size:' in input_lower:
+            try:
+                size_start = input_lower.find('size:') + 5
+                size_end = input_lower.find(',', size_start)
+                if size_end == -1:
+                    size_end = len(input_lower)
+                size_str = input_lower[size_start:size_end].strip()
+                file_size = int(''.join(filter(str.isdigit, size_str)))
+            except:
+                file_size = 0
         
         # Initialize database connection with robust error handling
         if not initialize_connection():
@@ -245,19 +267,25 @@ def _apply_validation_rule(rule: dict, content: str, filename: str, validation_r
 def _find_or_create_application(connection, content: str, document_id: str) -> str:
     """Find existing application or create new one based on document content."""
     
-    # Try to extract a name from the document to find existing application
-    import re
-    name_patterns = [
-        r"(?:Employee|Name|Account Holder):\s*([A-Za-z\s,]+)",
-        r"([A-Z][a-z]+\s+[A-Z][a-z]+)"  # Basic name pattern
-    ]
-    
+    # Try to extract a name from the document using string methods (12-FACTOR COMPLIANT)
     extracted_name = None
-    for pattern in name_patterns:
-        match = re.search(pattern, content, re.IGNORECASE)
-        if match:
-            extracted_name = match.group(1).strip()
-            break
+    
+    # Look for common name patterns using string methods
+    content_lines = content.split('\n')
+    for line in content_lines:
+        line_lower = line.lower()
+        if 'employee:' in line_lower or 'name:' in line_lower or 'account holder:' in line_lower:
+            try:
+                # Extract text after the colon
+                colon_pos = line.find(':')
+                if colon_pos != -1:
+                    name_part = line[colon_pos+1:].strip()
+                    # Basic validation - should contain letters and spaces, reasonable length
+                    if 2 <= len(name_part.split()) <= 3 and name_part.replace(' ', '').replace(',', '').isalpha():
+                        extracted_name = name_part
+                        break
+            except:
+                pass
     
     with connection.driver.session(database=connection.database) as session:
         if extracted_name:
