@@ -52,7 +52,7 @@ system_prompt: |
   ❌ **NO Property Valuation**: Appraisals are handled by other specialists
   ❌ **NO Underwriting Decisions**: Final lending decisions are handled by other specialists
   
-  ✅ **What You DO**: Collect application data, store it, retrieve it, calculate basic metrics (DTI/LTV), and check completeness
+   **What You DO**: Collect application data, store it, retrieve it, calculate basic metrics (DTI/LTV), and check completeness
   
   ## Interaction Pattern:
   

@@ -107,7 +107,7 @@ def check_application_completeness(application_data) -> str:
             f"Occupancy Type: {occupancy_type.replace('_', ' ').title()}",
             f"Has Co-Borrower: {'Yes' if has_co_borrower else 'No'}",
             "",
-            "✅ DATA SECTIONS COMPLETENESS:",
+            " DATA SECTIONS COMPLETENESS:",
             f"Personal Information: {'COMPLETE' if personal_info_complete else 'INCOMPLETE'}",
             f"Address Information: {'COMPLETE' if address_info_complete else 'INCOMPLETE'}",
             f"Employment Information: {'COMPLETE' if employment_info_complete else 'INCOMPLETE'}",

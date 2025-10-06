@@ -122,7 +122,7 @@ def get_document_status(application_data: dict) -> str:
 
             # Status icon
             if status == "PROCESSED":
-                status_icon = "✅"
+                status_icon = ""
             elif status == "PENDING_REVIEW":
                 status_icon = "⏳"
             elif status == "UPLOADED":

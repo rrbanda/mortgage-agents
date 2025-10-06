@@ -79,7 +79,7 @@ def verify_document_completeness(application_data: dict) -> str:
         # List uploaded documents
         if document_status:
             for doc in document_status:
-                status_icon = "✅" if doc['status'] == "PROCESSED" else "⏳"
+                status_icon = "" if doc['status'] == "PROCESSED" else "⏳"
                 report.append(f"{status_icon} {doc['document_type'].replace('_', ' ').title()}")
                 report.append(f"   Upload Date: {doc['upload_date']}")
                 report.append(f"   Status: {doc['status']}")

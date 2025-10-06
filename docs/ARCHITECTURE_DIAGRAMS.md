@@ -86,10 +86,10 @@ graph TB
 ```
 
 **Key Principles:**
-- ✅ Each agent has operational tools (direct Neo4j access)
-- ✅ Each agent has scoped business rules tools (via MCP)
-- ✅ Business rules are centralized in `shared/rules/`
-- ✅ Clean separation of concerns
+-  Each agent has operational tools (direct Neo4j access)
+-  Each agent has scoped business rules tools (via MCP)
+-  Business rules are centralized in `shared/rules/`
+-  Clean separation of concerns
 
 ---
 
@@ -112,13 +112,13 @@ graph LR
         style BR1 fill:#FF6B6B,stroke:#C93838,stroke-width:3px,color:#fff
     end
     
-    subgraph "✅ AFTER - Shared Business Rules Tools"
+    subgraph " AFTER - Shared Business Rules Tools"
         U2[User] --> R2[Router]
         R2 --> A2[ApplicationAgent<br/>+ business rules tools]
         R2 --> M2[MortgageAdvisorAgent<br/>+ business rules tools]
         R2 --> D2[DocumentAgent<br/>+ business rules tools]
         
-        A2 --> BR2[✅ shared/rules/<br/>Scoped Tools]
+        A2 --> BR2[ shared/rules/<br/>Scoped Tools]
         M2 --> BR2
         D2 --> BR2
         BR2 --> MCP[MCP]
@@ -134,9 +134,9 @@ graph LR
 **Benefits of New Architecture:**
 - ❌ **Eliminated:** Extra routing complexity
 - ❌ **Eliminated:** Context switching between agents
-- ✅ **Improved:** Direct access to business rules within each agent
-- ✅ **Improved:** Each agent only has rules it needs (scoped)
-- ✅ **Improved:** Faster response times (no agent-to-agent routing)
+-  **Improved:** Direct access to business rules within each agent
+-  **Improved:** Each agent only has rules it needs (scoped)
+-  **Improved:** Faster response times (no agent-to-agent routing)
 
 ---
 
@@ -287,7 +287,7 @@ sequenceDiagram
     
     Agent->>User: "FHA loans are government-backed<br/>Requirements: 580+ credit score,<br/>3.5% down payment, 43% DTI max"
     
-    Note over Agent,Neo4j: ✅ Clean separation: operational info + business rules
+    Note over Agent,Neo4j:  Clean separation: operational info + business rules
 ```
 
 **Key Points:**
@@ -346,7 +346,7 @@ flowchart TD
     AppraisalOp --> Neo4jDirect
     UnderwritingOp --> Neo4jDirect
     
-    AppBR --> Response([✅ Response to User])
+    AppBR --> Response([ Response to User])
     AppOp --> Response
     AdvisorBR --> Response
     AdvisorOp --> Response
@@ -454,7 +454,7 @@ flowchart TD
 
 ```
 app/agents/
-├── shared/                          # ✅ Shared utilities
+├── shared/                          #  Shared utilities
 │   ├── rules/                       # 🔴 Business Rules (MCP)
 │   │   ├── __init__.py             
 │   │   ├── get_application_intake_rules.py
@@ -530,21 +530,21 @@ app/agents/
 
 ## 9️⃣ Key Architectural Decisions
 
-### ✅ **What Changed:**
+###  **What Changed:**
 1. **Deleted `business_rules_agent`** - No longer a separate agent
 2. **Centralized business rules** - All in `shared/rules/`
 3. **Scoped business rules** - Each agent gets only what it needs
 4. **Clean tool separation** - Operational vs. business rules
 5. **Direct access** - Agents call business rules directly (no routing)
 
-### ✅ **Design Principles:**
+###  **Design Principles:**
 1. **Operational tools** → NO hardcoded business rules
 2. **Business rules tools** → From `shared/rules/`, accessed via MCP
 3. **Operational tools** → Call Neo4j DIRECTLY (for speed)
 4. **Business rules tools** → Call Neo4j via MCP (for consistency)
 5. **Each agent** → Only includes business rules it needs (scoped)
 
-### ✅ **Benefits:**
+###  **Benefits:**
 - **Faster response times** - No agent-to-agent routing
 - **Better maintainability** - Business rules in one location
 - **Clearer separation** - Operational vs. business logic
@@ -556,11 +556,11 @@ app/agents/
 ## 🎯 **Summary**
 
 The refactored architecture achieves:
-- ✅ **5 specialized agents** (no business_rules_agent)
-- ✅ **36 total tools** (26 operational, 10 business rules)
-- ✅ **Clean separation** (operational vs. business rules)
-- ✅ **Scoped business rules** (each agent has only what it needs)
-- ✅ **Centralized rules** (shared/rules/ directory)
-- ✅ **Direct access** (no routing to separate business rules agent)
+-  **5 specialized agents** (no business_rules_agent)
+-  **36 total tools** (26 operational, 10 business rules)
+-  **Clean separation** (operational vs. business rules)
+-  **Scoped business rules** (each agent has only what it needs)
+-  **Centralized rules** (shared/rules/ directory)
+-  **Direct access** (no routing to separate business rules agent)
 
 **Result:** A more efficient, maintainable, and scalable mortgage processing system!

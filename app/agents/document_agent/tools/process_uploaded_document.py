@@ -53,7 +53,7 @@ def process_uploaded_document(application_data: dict) -> str:
         if len(document_content) < 10:
             validation_results.append("❌ Document content too short - may be corrupted")
         else:
-            validation_results.append("✅ Document content length acceptable")
+            validation_results.append(" Document content length acceptable")
 
         # Document type specific processing
         if document_type == "pay_stub":
@@ -66,9 +66,9 @@ def process_uploaded_document(application_data: dict) -> str:
                 "net_pay": (application_data.get('monthly_income', 5000.0) * 0.75),  # Mock calculation
                 "year_to_date": (application_data.get('monthly_income', 5000.0) * 6)  # Mock YTD
             }
-            validation_results.append("✅ Pay stub format validated")
-            validation_results.append("✅ Employer information extracted")
-            validation_results.append("✅ Income information extracted")
+            validation_results.append(" Pay stub format validated")
+            validation_results.append(" Employer information extracted")
+            validation_results.append(" Income information extracted")
 
         elif document_type == "bank_statement":
             # Mock bank statement processing
@@ -79,9 +79,9 @@ def process_uploaded_document(application_data: dict) -> str:
                 "average_balance": (application_data.get('liquid_assets', 25000.0) * 0.9),
                 "transaction_count": 45  # Mock count
             }
-            validation_results.append("✅ Bank statement format validated")
-            validation_results.append("✅ Account information extracted")
-            validation_results.append("✅ Balance information extracted")
+            validation_results.append(" Bank statement format validated")
+            validation_results.append(" Account information extracted")
+            validation_results.append(" Balance information extracted")
 
         elif document_type == "w2":
             # Mock W-2 processing
@@ -92,9 +92,9 @@ def process_uploaded_document(application_data: dict) -> str:
                 "tax_year": "2023",
                 "ssn": application_data.get('ssn', "***-**-****")
             }
-            validation_results.append("✅ W-2 format validated")
-            validation_results.append("✅ Employer information extracted")
-            validation_results.append("✅ Income information extracted")
+            validation_results.append(" W-2 format validated")
+            validation_results.append(" Employer information extracted")
+            validation_results.append(" Income information extracted")
 
         else:
             validation_results.append(f"⚠️ Unknown document type: {document_type}")
@@ -103,16 +103,16 @@ def process_uploaded_document(application_data: dict) -> str:
         # Quality checks
         quality_checks = []
         if extracted_data:
-            quality_checks.append("✅ Data extraction completed")
-            quality_checks.append("✅ Document structure validated")
-            quality_checks.append("✅ Content readability confirmed")
+            quality_checks.append(" Data extraction completed")
+            quality_checks.append(" Document structure validated")
+            quality_checks.append(" Content readability confirmed")
         else:
             quality_checks.append("❌ Data extraction failed")
 
         # Update document status
         try:
             update_application_status(application_id, "DOCUMENTS_PROCESSED", f"Document {document_id} successfully processed and validated")
-            processing_results.append(f"✅ Document status updated to PROCESSED")
+            processing_results.append(f" Document status updated to PROCESSED")
         except Exception as e:
             processing_results.append(f"⚠️ Status update failed: {str(e)}")
 
@@ -137,7 +137,7 @@ def process_uploaded_document(application_data: dict) -> str:
 
         report.extend([
             "",
-            "✅ VALIDATION RESULTS:"
+            " VALIDATION RESULTS:"
         ])
         report.extend(validation_results)
 

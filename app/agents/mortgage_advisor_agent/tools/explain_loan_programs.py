@@ -82,7 +82,7 @@ def explain_loan_programs(application_data: dict) -> str:
             ])
 
             if benefits:
-                guide.append("✅ BENEFITS:")
+                guide.append(" BENEFITS:")
                 for benefit in benefits:
                     guide.append(f"• {benefit}")
                 guide.append("")

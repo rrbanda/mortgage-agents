@@ -57,9 +57,9 @@ def extract_document_data(application_data: dict) -> str:
                 "net_pay": application_data.get('monthly_income', 5000.0) * 0.75,  # Mock calculation
                 "year_to_date": application_data.get('monthly_income', 5000.0) * 6  # Mock YTD
             }
-            extraction_results.append("✅ Pay stub format validated")
-            extraction_results.append("✅ Employer information extracted")
-            extraction_results.append("✅ Income information extracted")
+            extraction_results.append(" Pay stub format validated")
+            extraction_results.append(" Employer information extracted")
+            extraction_results.append(" Income information extracted")
 
         elif document_type == "bank_statement":
             # Mock bank statement processing
@@ -70,9 +70,9 @@ def extract_document_data(application_data: dict) -> str:
                 "average_balance": (application_data.get('liquid_assets', 25000.0) * 0.9),
                 "transaction_count": 45  # Mock count
             }
-            extraction_results.append("✅ Bank statement format validated")
-            extraction_results.append("✅ Account information extracted")
-            extraction_results.append("✅ Balance information extracted")
+            extraction_results.append(" Bank statement format validated")
+            extraction_results.append(" Account information extracted")
+            extraction_results.append(" Balance information extracted")
 
         elif document_type == "w2":
             # Mock W-2 processing
@@ -83,9 +83,9 @@ def extract_document_data(application_data: dict) -> str:
                 "tax_year": "2023",
                 "ssn": application_data.get('ssn', "***-**-****")
             }
-            extraction_results.append("✅ W-2 format validated")
-            extraction_results.append("✅ Employer information extracted")
-            extraction_results.append("✅ Income information extracted")
+            extraction_results.append(" W-2 format validated")
+            extraction_results.append(" Employer information extracted")
+            extraction_results.append(" Income information extracted")
 
         else:
             extraction_results.append(f"⚠️ Unknown document type: {document_type}")
@@ -111,7 +111,7 @@ def extract_document_data(application_data: dict) -> str:
 
         report.extend([
             "",
-            "✅ EXTRACTION RESULTS:"
+            " EXTRACTION RESULTS:"
         ])
         report.extend(extraction_results)
 

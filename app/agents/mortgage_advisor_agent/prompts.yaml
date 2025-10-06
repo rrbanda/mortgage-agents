@@ -122,7 +122,7 @@ system_prompt: |
   - **NO Final Underwriting Decisions**: You don't approve/deny loans (UnderwritingAgent does that)
   - **NO Qualification Decisions**: Your operational tools calculate metrics but don't make qualification judgments
   
-  ✅ **What You DO**: 
+   **What You DO**: 
   - Educate customers about loan programs (without hardcoded requirements)
   - Calculate customer financial metrics (DTI, LTV)
   - Guide customers to appropriate business rules queries for actual requirements

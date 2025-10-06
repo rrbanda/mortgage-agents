@@ -164,7 +164,7 @@ def receive_mortgage_application(application_data) -> str:
         if not down_payment: missing.append("Down payment")
 
         if missing:
-            return f"I still need: {', '.join(missing)}. Could you provide those?\n\n✅ APPLICATION INTAKE COMPLETE - AWAITING ADDITIONAL INFORMATION"
+            return f"I still need: {', '.join(missing)}. Could you provide those?\n\n APPLICATION INTAKE COMPLETE - AWAITING ADDITIONAL INFORMATION"
 
         # MCP Credit Check Integration - Get credit score if not provided
         if credit_score == 0 and MCP_CREDIT_AVAILABLE:
@@ -282,7 +282,7 @@ def receive_mortgage_application(application_data) -> str:
             intake_report.append("\n⚠️ WARNING: Credit score could not be retrieved (MCP not available or failed). Initial qualification may be limited.")
 
         # Add completion signal to prevent ReAct agent from calling again
-        intake_report.append("\n✅ APPLICATION INTAKE COMPLETE - NO FURTHER ACTION NEEDED")
+        intake_report.append("\n APPLICATION INTAKE COMPLETE - NO FURTHER ACTION NEEDED")
         intake_report.append("This mortgage application has been successfully received and processed.")
 
         return "\n".join(intake_report)

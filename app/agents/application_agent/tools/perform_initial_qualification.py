@@ -104,7 +104,7 @@ def perform_initial_qualification(application_data) -> str:
             "loan program recommendations, consult with the Mortgage Advisor Agent",
             "or Business Rules Agent for specific program requirements.",
             "",
-            "✅ METRICS CALCULATION COMPLETE"
+            " METRICS CALCULATION COMPLETE"
         ]
         
         return "\n".join(qualification_report)

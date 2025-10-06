@@ -56,31 +56,31 @@ def check_qualification_requirements(application_data: dict) -> str:
         data_completeness = []
         
         if credit_score > 0:
-            data_completeness.append("✅ Credit Score: Provided")
+            data_completeness.append(" Credit Score: Provided")
         else:
             data_completeness.append("❌ Credit Score: Missing")
             
         if annual_income > 0:
-            data_completeness.append("✅ Income: Provided")
+            data_completeness.append(" Income: Provided")
         else:
             data_completeness.append("❌ Income: Missing")
             
         if property_value > 0:
-            data_completeness.append("✅ Property Value: Provided")
+            data_completeness.append(" Property Value: Provided")
         else:
             data_completeness.append("❌ Property Value: Missing")
             
         if down_payment > 0:
-            data_completeness.append("✅ Down Payment: Provided")
+            data_completeness.append(" Down Payment: Provided")
         else:
             data_completeness.append("❌ Down Payment: Missing")
             
         if monthly_debts >= 0:
-            data_completeness.append("✅ Monthly Debts: Provided")
+            data_completeness.append(" Monthly Debts: Provided")
         else:
             data_completeness.append("❌ Monthly Debts: Missing")
         
-        complete_count = sum(1 for item in data_completeness if item.startswith("✅"))
+        complete_count = sum(1 for item in data_completeness if item.startswith(""))
         total_count = len(data_completeness)
 
         # Generate data quality and metrics report (NO qualification decisions)

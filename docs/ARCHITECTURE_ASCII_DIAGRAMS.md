@@ -288,7 +288,7 @@ User: "I have 600 credit score, make $5k/month, $500 debts.
        │   ✓ Down payment 3.5%                  │
        │   ✓ DTI max 43% (you have 10% ✓)      │
        │                                        │
-       │   ✅ You qualify for FHA!"             │
+       │    You qualify for FHA!"             │
        └────────────────────────────────────────┘
 ```
 
@@ -445,31 +445,31 @@ app/agents/
 ║               ARCHITECTURAL PRINCIPLES                         ║
 ╚════════════════════════════════════════════════════════════════╝
 
-✅ SEPARATION OF CONCERNS
+ SEPARATION OF CONCERNS
    ┌─────────────────────────────────────────────────────────┐
    │ Operational Tools:   NO hardcoded business rules        │
    │ Business Rules Tools: From shared/rules/ via MCP        │
    └─────────────────────────────────────────────────────────┘
 
-✅ DATA ACCESS
+ DATA ACCESS
    ┌─────────────────────────────────────────────────────────┐
    │ Operational Tools:   Direct Neo4j access (fast)         │
    │ Business Rules Tools: Via MCP (consistent)              │
    └─────────────────────────────────────────────────────────┘
 
-✅ SCOPED BUSINESS RULES
+ SCOPED BUSINESS RULES
    ┌─────────────────────────────────────────────────────────┐
    │ Each agent gets ONLY the business rules it needs        │
    │ Not all 8 rules - just relevant ones                    │
    └─────────────────────────────────────────────────────────┘
 
-✅ NO SEPARATE BUSINESS RULES AGENT
+ NO SEPARATE BUSINESS RULES AGENT
    ┌─────────────────────────────────────────────────────────┐
    │ Agents access business rules DIRECTLY                   │
    │ No routing to separate agent needed                     │
    └─────────────────────────────────────────────────────────┘
 
-✅ CENTRALIZED BUSINESS RULES
+ CENTRALIZED BUSINESS RULES
    ┌─────────────────────────────────────────────────────────┐
    │ All business rules in: app/agents/shared/rules/         │
    │ Single source of truth for all agents                   │

@@ -114,7 +114,7 @@ def validate_urla_form(application_data: dict) -> str:
 
             if is_valid:
                 passed_validations += 1
-                status_icon = "✅"
+                status_icon = ""
             else:
                 status_icon = "❌"
 
@@ -163,9 +163,9 @@ def validate_urla_form(application_data: dict) -> str:
             report.extend([
                 "🎉 OVERALL STATUS: VALIDATION PASSED",
                 "",
-                "✅ All required fields are present and valid",
-                "✅ URLA Form 1003 is ready for submission",
-                "✅ No corrections needed",
+                " All required fields are present and valid",
+                " URLA Form 1003 is ready for submission",
+                " No corrections needed",
                 "",
                 "📝 NEXT STEPS:",
                 "1. Form is ready for borrower signature",
