@@ -1,401 +1,175 @@
 """
-Application Completeness Check Tool
+Application Completeness Check Tool - Application Agent
 
-This tool verifies application completeness against requirements
-based on Neo4j application intake rules.
+This tool verifies that all required fields are present in a mortgage application.
+It checks basic required fields and reports what's complete vs. missing.
+For loan-program-specific requirements, use get_application_intake_rules via BusinessRulesAgent.
 """
 
-import json
 import logging
-from typing import Dict, List, Any, Optional
-from pydantic import BaseModel, Field
 from langchain_core.tools import tool
+from typing import Dict, List, Any, Optional
 
-try:
-    from utils import get_neo4j_connection, initialize_connection
-except ImportError:
-    from utils import get_neo4j_connection, initialize_connection
+# MortgageInput schema removed - using flexible dict approach
 
 logger = logging.getLogger(__name__)
 
 
-def parse_neo4j_rule(rule_dict: Dict[str, Any]) -> Dict[str, Any]:
-    """Parse JSON strings back to objects in Neo4j rule data."""
-    parsed_rule = {}
-    for key, value in rule_dict.items():
-        if isinstance(value, str) and (value.startswith('{') or value.startswith('[')):
-            try:
-                parsed_rule[key] = json.loads(value)
-            except json.JSONDecodeError:
-                parsed_rule[key] = value  # Keep as string if not valid JSON
-        else:
-            parsed_rule[key] = value
-    return parsed_rule
-
-
-class ApplicationCompletenessRequest(BaseModel):
-    """Application completeness check request parameters."""
-    application_id: str = Field(default="TEMP_CHECK", description="Application ID to check")
-    loan_purpose: str = Field(default="purchase", description="Loan purpose (purchase, refinance, etc.)")
-    employment_type: str = Field(default="w2", description="Employment type (w2, self_employed, contract)")
-    has_co_borrower: bool = Field(default=False, description="Has co-borrower")
-    property_type: str = Field(default="single_family_detached", description="Property type")
-    occupancy_type: str = Field(default="primary_residence", description="Occupancy type")
-    
-    # Field status (True = provided, False = missing)
-    personal_info_complete: bool = Field(default=True, description="Personal information complete")
-    address_info_complete: bool = Field(default=True, description="Address information complete")
-    employment_info_complete: bool = Field(default=True, description="Employment information complete")
-    income_documentation: bool = Field(default=False, description="Income documentation provided")
-    asset_documentation: bool = Field(default=False, description="Asset documentation provided")
-    debt_documentation: bool = Field(default=False, description="Debt documentation provided")
-    property_documentation: bool = Field(default=False, description="Property documentation provided")
-    insurance_documentation: bool = Field(default=False, description="Insurance documentation provided")
-    
-    # Additional documentation flags
-    tax_returns_provided: bool = Field(default=False, description="Tax returns provided")
-    bank_statements_provided: bool = Field(default=False, description="Bank statements provided")
-    paystubs_provided: bool = Field(default=False, description="Pay stubs provided")
-    w2_forms_provided: bool = Field(default=False, description="W2 forms provided")
-    credit_report_authorized: bool = Field(default=False, description="Credit report authorization signed")
-
-
 @tool
-def check_application_completeness(tool_input: str) -> str:
-    """
-    Check application completeness against requirements using Neo4j application intake rules.
+def check_application_completeness(application_data) -> str:
+    """Check if all basic required fields are present in mortgage application.
     
-    This tool verifies that all required documentation and information has been
-    provided based on loan type, employment type, and property characteristics.
+    This tool verifies that all core required fields are present. It checks:
+    - Personal info, Address, Employment, Financial, Loan/Property details
+    
+    For loan-program-specific requirements (e.g., FHA vs. Conventional), 
+    consult with BusinessRulesAgent using get_application_intake_rules().
     
     Args:
-        tool_input: Application completeness check request in natural language format
+        application_data: Dict containing application info. May include:
+            - application_id, loan_purpose, employment_type, property_type, occupancy_type
+            - first_name, last_name, ssn, date_of_birth, phone, email
+            - current_street, current_city, current_state, current_zip
+            - employer_name, job_title, years_employed, monthly_income, annual_income
+            - credit_score, monthly_debts, liquid_assets
+            - loan_amount, property_value, down_payment, property_address
+            (All fields optional - tool checks what's available)
         
-    Example:
-        "Application: APP_123, Loan: purchase, Employment: w2, Co-borrower: no, Property: single_family, Occupancy: primary, Documentation: paystubs provided, bank statements missing"
-    
     Returns:
-        String containing detailed application completeness analysis and missing requirements
+        String containing completeness analysis and missing fields
     """
-    
     try:
-        # 12-FACTOR COMPLIANT: Enhanced parser only (Factor 8: Own Your Control Flow)
-        from agents.shared.input_parser import parse_complete_mortgage_input
+        # Handle both dict and string inputs (for LLM compatibility)
+        if isinstance(application_data, str):
+            try:
+                import ast
+                application_data = ast.literal_eval(application_data)
+            except:
+                application_data = {"raw_input": application_data}
         
-        # Factor 1: Natural Language → Tool Calls - comprehensive parsing
-        parsed_data = parse_complete_mortgage_input(tool_input)
-        input_lower = tool_input.lower()  # Keep for boolean flag detection
+        if not isinstance(application_data, dict):
+            application_data = {"raw_input": str(application_data)}
         
-        # Factor 4: Tools as Structured Outputs - safe parameter extraction with None protection
-        application_id = parsed_data.get("application_id") or "TEMP_CHECK"
-        loan_purpose = parsed_data.get("loan_purpose") or "purchase"  
-        employment_type = parsed_data.get("employment_type") or "w2"
-        property_type = parsed_data.get("property_type") or "single_family_detached"
-        occupancy_type = parsed_data.get("occupancy_type") or "primary_residence"
+        # NEW ARCHITECTURE: Tool receives pre-validated structured data
+        # No parsing needed - data is already validated and structured
+
+        # Extract data from flexible dict input
+        application_id = application_data.get("application_id", "TEMP_CHECK")
+        loan_purpose = application_data.get("loan_purpose", "purchase")
+        employment_type = application_data.get("employment_type", "w2")
+        property_type = application_data.get("property_type", "single_family_detached")
+        occupancy_type = application_data.get("occupancy_type", "primary_residence")
+
+        # Enhanced boolean flag detection from structured data
+        has_co_borrower = False  # Would need separate tracking in real system
+
+        # Documentation status - check if required fields are present
+        personal_info_complete = bool(application_data.get("first_name") and application_data.get("last_name") and
+                                    application_data.get("ssn") and application_data.get("date_of_birth") and
+                                    application_data.get("phone") and application_data.get("email"))
+        address_info_complete = bool(application_data.get("current_street") and application_data.get("current_city") and
+                                     application_data.get("current_state") and application_data.get("current_zip"))
+        employment_info_complete = bool(application_data.get("employer_name") and application_data.get("job_title") and
+                                       application_data.get("years_employed") is not None and
+                                       (application_data.get("monthly_income") is not None or application_data.get("annual_income") is not None))
+        financial_info_complete = bool(application_data.get("credit_score") is not None and
+                                      application_data.get("monthly_debts") is not None and
+                                      application_data.get("liquid_assets") is not None)
+        loan_info_complete = bool(application_data.get("loan_amount") is not None and application_data.get("loan_purpose") and
+                                 application_data.get("property_value") is not None and application_data.get("down_payment") is not None and
+                                 application_data.get("property_address") and application_data.get("property_type") and
+                                 application_data.get("occupancy_type"))
+
+        # Check for missing fields based on basic completeness checks
+        missing_requirements = []
         
-        # Enhanced boolean flag detection (no regex - Factor 9: Compact Errors)
-        has_co_borrower = (parsed_data.get("co_borrower", False) or 
-                          "co-borrower: yes" in input_lower or 
-                          "co-borrower: true" in input_lower or
-                          "has co-borrower" in input_lower)
-        
-        # Documentation status - assume complete unless specifically mentioned as missing
-        personal_info_complete = "personal info missing" not in input_lower
-        address_info_complete = "address missing" not in input_lower
-        employment_info_complete = "employment missing" not in input_lower
-        
-        # Look for specific documentation mentions
-        income_documentation = "income provided" in input_lower or "income documentation" in input_lower
-        asset_documentation = "assets provided" in input_lower or "asset documentation" in input_lower
-        debt_documentation = "debt provided" in input_lower or "debt documentation" in input_lower
-        property_documentation = "property docs provided" in input_lower
-        insurance_documentation = "insurance provided" in input_lower
-        
-        # Specific document types
-        tax_returns_provided = "tax returns provided" in input_lower
-        bank_statements_provided = "bank statements provided" in input_lower
-        paystubs_provided = "paystubs provided" in input_lower
-        w2_forms_provided = "w2 provided" in input_lower or "w2 forms provided" in input_lower
-        credit_report_authorized = "credit report authorized" in input_lower
-        
-        # Initialize Neo4j connection with robust error handling
-        if not initialize_connection():
-            return "❌ Failed to connect to Neo4j database. Please try again later."
-        
-        connection = get_neo4j_connection()
-        
-        # ROBUST CONNECTION CHECK: Handle server environment issues
-        if connection.driver is None:
-            # Force reconnection if driver is None
-            if not connection.connect():
-                return "❌ Failed to establish Neo4j connection. Please restart the server."
-        
-        with connection.driver.session(database=connection.database) as session:
-            # Get completeness validation rules
-            completeness_query = """
-            MATCH (rule:ApplicationIntakeRule)
-            WHERE rule.category = 'ValidationRules' AND rule.rule_type = 'completeness_validation'
-            RETURN rule
-            """
-            result = session.run(completeness_query)
-            completeness_rules = [parse_neo4j_rule(dict(record['rule'])) for record in result]
-            
-            # Get application requirements
-            requirements_query = """
-            MATCH (rule:ApplicationIntakeRule)
-            WHERE rule.category = 'ApplicationRequirements'
-            RETURN rule
-            """
-            result = session.run(requirements_query)
-            requirements_rules = [parse_neo4j_rule(dict(record['rule'])) for record in result]
-        
+        if not personal_info_complete:
+            missing_requirements.append("• Personal Information section is incomplete")
+        if not address_info_complete:
+            missing_requirements.append("• Address Information section is incomplete")
+        if not employment_info_complete:
+            missing_requirements.append("• Employment Information section is incomplete")
+        if not financial_info_complete:
+            missing_requirements.append("• Financial Information section is incomplete")
+        if not loan_info_complete:
+            missing_requirements.append("• Loan & Property Information section is incomplete")
+
         # Generate completeness report
-        completeness_report = []
-        completeness_report.append("APPLICATION COMPLETENESS ANALYSIS")
-        completeness_report.append("=" * 50)
-        
-        # Application Information
-        completeness_report.append(f"\n📋 APPLICATION DETAILS:")
-        completeness_report.append(f"Application ID: {application_id}")
-        completeness_report.append(f"Loan Purpose: {loan_purpose.replace('_', ' ').title()}")
-        completeness_report.append(f"Employment Type: {employment_type.replace('_', ' ').title()}")
-        completeness_report.append(f"Property Type: {property_type.replace('_', ' ').title()}")
-        completeness_report.append(f"Occupancy: {occupancy_type.replace('_', ' ').title()}")
-        if has_co_borrower:
-            completeness_report.append(" Co-Borrower Application")
-        
-        # Basic Information Completeness
-        completeness_report.append(f"\n📝 BASIC INFORMATION COMPLETENESS:")
-        
-        basic_sections = [
-            ("Personal Information", personal_info_complete),
-            ("Address Information", address_info_complete),
-            ("Employment Information", employment_info_complete)
+        completeness_report = [
+            "APPLICATION COMPLETENESS ANALYSIS",
+            "==================================================",
+            "",
+            "📋 APPLICATION DETAILS:",
+            f"Application ID: {application_id}",
+            f"Loan Purpose: {loan_purpose.title()}",
+            f"Employment Type: {employment_type.upper()}",
+            f"Property Type: {property_type.replace('_', ' ').title()}",
+            f"Occupancy Type: {occupancy_type.replace('_', ' ').title()}",
+            f"Has Co-Borrower: {'Yes' if has_co_borrower else 'No'}",
+            "",
+            "✅ DATA SECTIONS COMPLETENESS:",
+            f"Personal Information: {'COMPLETE' if personal_info_complete else 'INCOMPLETE'}",
+            f"Address Information: {'COMPLETE' if address_info_complete else 'INCOMPLETE'}",
+            f"Employment Information: {'COMPLETE' if employment_info_complete else 'INCOMPLETE'}",
+            f"Financial Information: {'COMPLETE' if financial_info_complete else 'INCOMPLETE'}",
+            f"Loan & Property Information: {'COMPLETE' if loan_info_complete else 'INCOMPLETE'}",
+            ""
         ]
-        
-        basic_complete_count = 0
-        for section, is_complete in basic_sections:
-            status = "" if is_complete else ""
-            completeness_report.append(f"  {status} {section}")
-            if is_complete:
-                basic_complete_count += 1
-        
-        basic_completion_rate = (basic_complete_count / len(basic_sections)) * 100
-        completeness_report.append(f"📊 Basic Information: {basic_completion_rate:.0f}% complete")
-        
-        # Documentation Requirements Analysis
-        completeness_report.append(f"\n📄 DOCUMENTATION REQUIREMENTS:")
-        
-        missing_docs = []
-        provided_docs = []
-        conditional_docs = []
-        
-        # Get completeness rule
-        completeness_rule = completeness_rules[0] if completeness_rules else {}
-        conditional_reqs = completeness_rule.get('conditional_requirements', {})
-        
-        # Standard documentation requirements
-        standard_docs = [
-            ("Income Documentation", income_documentation, "Required for all loans"),
-            ("Asset Documentation", asset_documentation, "Required for down payment verification"),
-            ("Credit Report Authorization", credit_report_authorized, "Required for credit analysis"),
-            ("Property Documentation", property_documentation, "Required for property verification")
-        ]
-        
-        for doc_name, is_provided, description in standard_docs:
-            if is_provided:
-                provided_docs.append((doc_name, description))
-                completeness_report.append(f"   {doc_name}")
-            else:
-                missing_docs.append((doc_name, description))
-                completeness_report.append(f"   {doc_name} - {description}")
-        
-        # Employment-specific requirements
-        if employment_type == "self_employed":
-            self_employed_docs = [
-                ("Tax Returns", tax_returns_provided, "2 years tax returns required for self-employed"),
-                ("Profit & Loss Statements", debt_documentation, "Current year P&L required")
-            ]
-            
-            completeness_report.append(f"\n💼 SELF-EMPLOYED REQUIREMENTS:")
-            for doc_name, is_provided, description in self_employed_docs:
-                if is_provided:
-                    provided_docs.append((doc_name, description))
-                    completeness_report.append(f"   {doc_name}")
-                else:
-                    missing_docs.append((doc_name, description))
-                    completeness_report.append(f"   {doc_name} - {description}")
-        
-        elif employment_type == "w2":
-            w2_docs = [
-                ("Pay Stubs", paystubs_provided, "Recent pay stubs (30 days)"),
-                ("W2 Forms", w2_forms_provided, "2 years W2 forms")
-            ]
-            
-            completeness_report.append(f"\n💼 W2 EMPLOYEE REQUIREMENTS:")
-            for doc_name, is_provided, description in w2_docs:
-                if is_provided:
-                    provided_docs.append((doc_name, description))
-                    completeness_report.append(f"   {doc_name}")
-                else:
-                    missing_docs.append((doc_name, description))
-                    completeness_report.append(f"   {doc_name} - {description}")
-        
-        # Asset documentation requirements
-        completeness_report.append(f"\n💰 ASSET DOCUMENTATION:")
-        asset_docs = [
-            ("Bank Statements", bank_statements_provided, "2 months recent statements")
-        ]
-        
-        for doc_name, is_provided, description in asset_docs:
-            if is_provided:
-                provided_docs.append((doc_name, description))
-                completeness_report.append(f"   {doc_name}")
-            else:
-                missing_docs.append((doc_name, description))
-                completeness_report.append(f"   {doc_name} - {description}")
-        
-        # Co-borrower requirements
-        if has_co_borrower:
-            completeness_report.append(f"\n👥 CO-BORROWER REQUIREMENTS:")
-            completeness_report.append("   Co-Borrower Income Documentation - Required")
-            completeness_report.append("   Co-Borrower Asset Documentation - Required")
-            completeness_report.append("   Co-Borrower Employment Verification - Required")
-            missing_docs.extend([
-                ("Co-Borrower Income Documentation", "Required for qualification"),
-                ("Co-Borrower Asset Documentation", "Required for down payment"),
-                ("Co-Borrower Employment Verification", "Required for income stability")
-            ])
-        
-        # Loan Purpose Specific Requirements
-        loan_purpose_rule = next((rule for rule in requirements_rules if rule.get('rule_type') == 'loan_purpose_validation'), {})
-        purpose_requirements = loan_purpose_rule.get('purpose_requirements', {})
-        
-        if loan_purpose in purpose_requirements:
-            specific_reqs = purpose_requirements[loan_purpose]
-            completeness_report.append(f"\n🎯 {loan_purpose.upper().replace('_', ' ')} SPECIFIC REQUIREMENTS:")
-            
-            for req in specific_reqs:
-                req_name = req.replace('_', ' ').title()
-                # Assume not provided for demonstration
-                completeness_report.append(f"   {req_name} - Required for {loan_purpose}")
-                missing_docs.append((req_name, f"Required for {loan_purpose}"))
-        
-        # Property Type Specific Requirements
-        if property_type == "condominium":
-            completeness_report.append(f"\n🏢 CONDOMINIUM SPECIFIC REQUIREMENTS:")
-            condo_docs = ["HOA Documents", "Condo Certification", "HOA Budget"]
-            for doc in condo_docs:
-                completeness_report.append(f"   {doc} - Required for condominium financing")
-                missing_docs.append((doc, "Required for condominium financing"))
-        
-        # Occupancy Type Requirements
-        if occupancy_type == "investment_property":
-            completeness_report.append(f"\n🏠 INVESTMENT PROPERTY REQUIREMENTS:")
-            investment_docs = ["Rental Income Documentation", "Property Management Agreement"]
-            for doc in investment_docs:
-                completeness_report.append(f"   {doc} - Required for investment property")
-                missing_docs.append((doc, "Required for investment property"))
-        
-        # Completeness Summary
-        completeness_report.append(f"\n📊 COMPLETENESS SUMMARY:")
-        
-        total_requirements = len(provided_docs) + len(missing_docs)
-        provided_count = len(provided_docs)
-        
-        if total_requirements > 0:
-            completion_percentage = (provided_count / total_requirements) * 100
-            completeness_report.append(f"Overall Completion: {completion_percentage:.1f}%")
-            completeness_report.append(f"Documents Provided: {provided_count}")
-            completeness_report.append(f"Documents Missing: {len(missing_docs)}")
-        
-        # Get minimum completion threshold
-        min_completion = completeness_rule.get('required_completion_percentage', 0.85) * 100
-        
-        # Status Assessment
-        completeness_report.append(f"\n🎯 STATUS ASSESSMENT:")
-        
-        if not missing_docs and basic_completion_rate == 100:
-            status = "COMPLETE"
-            status_icon = ""
-            next_action = "Ready for processing workflow"
-        elif completion_percentage >= min_completion and basic_completion_rate == 100:
-            status = "SUBSTANTIALLY COMPLETE"
-            status_icon = "⚠️"
-            next_action = "Can proceed with conditional approval"
+
+        if missing_requirements:
+            completeness_report.append("❌ MISSING REQUIRED INFORMATION:")
+            completeness_report.extend(missing_requirements)
+            completeness_report.append("\nACTION: Request the customer to provide the missing information.")
+            completeness_report.append("STATUS: INCOMPLETE")
         else:
-            status = "INCOMPLETE"
-            status_icon = ""
-            next_action = "Requires additional documentation"
+            completeness_report.append("🎉 ALL BASIC REQUIRED FIELDS ARE PRESENT!")
+            completeness_report.append("STATUS: COMPLETE (BASIC FIELDS)")
         
-        completeness_report.append(f"{status_icon} Application Status: {status}")
-        completeness_report.append(f"Required Completion: {min_completion:.0f}%")
-        completeness_report.append(f"Current Completion: {completion_percentage:.1f}%")
-        completeness_report.append(f"Next Action: {next_action}")
-        
-        # Missing Documents List
-        if missing_docs:
-            completeness_report.append(f"\n📋 MISSING DOCUMENTATION:")
-            for i, (doc_name, description) in enumerate(missing_docs, 1):
-                completeness_report.append(f"  {i}. {doc_name}")
-                completeness_report.append(f"     → {description}")
-        
-        # Provided Documents List
-        if provided_docs:
-            completeness_report.append(f"\n PROVIDED DOCUMENTATION:")
-            for i, (doc_name, description) in enumerate(provided_docs, 1):
-                completeness_report.append(f"  {i}. {doc_name}")
-        
-        # Recommendations
-        completeness_report.append(f"\n💡 RECOMMENDATIONS:")
-        
-        if status == "COMPLETE":
-            completeness_report.append("1. Proceed immediately to document verification")
-            completeness_report.append("2. Initiate credit analysis and underwriting process")
-        elif status == "SUBSTANTIALLY COMPLETE":
-            completeness_report.append("1. Proceed with initial processing")
-            completeness_report.append("2. Request missing documents during underwriting")
-            completeness_report.append("3. Set conditional approval pending documentation")
-        else:
-            completeness_report.append("1. Contact applicant for missing documentation")
-            completeness_report.append("2. Provide clear list of required documents")
-            completeness_report.append("3. Set follow-up timeline for completion")
-            if has_co_borrower:
-                completeness_report.append("4. Ensure co-borrower documentation is complete")
-        
+        completeness_report.append("")
+        completeness_report.append("ℹ️ NOTE:")
+        completeness_report.append("This checks basic required fields only. For loan-program-specific")
+        completeness_report.append("requirements (e.g., FHA vs. Conventional), consult BusinessRulesAgent")
+        completeness_report.append("using get_application_intake_rules().")
+
         return "\n".join(completeness_report)
-        
+
     except Exception as e:
         logger.error(f"Error during completeness check: {e}")
-        return f"❌ Error during completeness check: {str(e)}"
+        return f" Error during completeness check: {str(e)}"
 
 
 def validate_tool() -> bool:
     """Validate that the check_application_completeness tool works correctly."""
     try:
-        # Test with sample data
-        result = check_application_completeness.invoke({
+        test_data = {
             "application_id": "APP_20240101_123456_SMI",
+            "first_name": "John",
+            "last_name": "Smith",
+            "ssn": "123-45-6789",
+            "date_of_birth": "1985-01-15",
+            "phone": "555-123-4567",
+            "email": "john.smith@example.com",
+            "current_street": "123 Main St",
+            "current_city": "Anytown",
+            "current_state": "CA",
+            "current_zip": "90210",
+            "employer_name": "Tech Corp",
+            "job_title": "Software Engineer",
+            "years_employed": 4.0,
+            "monthly_income": 8000.0,
+            "credit_score": 720,
+            "monthly_debts": 1200.0,
+            "liquid_assets": 75000.0,
+            "loan_amount": 400000.0,
             "loan_purpose": "purchase",
-            "employment_type": "w2",
-            "has_co_borrower": False,
+            "property_value": 500000.0,
+            "down_payment": 100000.0,
+            "property_address": "456 Oak Ave, Anytown, CA 90210",
             "property_type": "single_family_detached",
-            "occupancy_type": "primary_residence",
-            "personal_info_complete": True,
-            "address_info_complete": True,
-            "employment_info_complete": True,
-            "income_documentation": True,
-            "asset_documentation": True,
-            "debt_documentation": False,
-            "property_documentation": False,
-            "insurance_documentation": False,
-            "tax_returns_provided": False,
-            "bank_statements_provided": True,
-            "paystubs_provided": True,
-            "w2_forms_provided": True,
-            "credit_report_authorized": True
-        })
-        return "APPLICATION COMPLETENESS ANALYSIS" in result and "STATUS ASSESSMENT" in result
+            "occupancy_type": "primary_residence"
+        }
+        result = check_application_completeness.invoke({"application_data": test_data})
+        return "APPLICATION COMPLETENESS ANALYSIS" in result and "STATUS: COMPLETE" in result
     except Exception as e:
-        print(f"Application completeness tool validation failed: {e}")
+        print(f"Check application completeness tool validation failed: {e}")
         return False

@@ -229,7 +229,7 @@ def show_execution_details(result, step_name):
     console.print(execution_panel)
     
     if not result:
-        console.print(Panel("[bold red]❌ No result received[/bold red]", border_style="red"))
+        console.print(Panel("[bold red] No result received[/bold red]", border_style="red"))
         return
     
     # Extract messages from agent system response
@@ -370,11 +370,11 @@ def show_execution_details(result, step_name):
                 
                 # Show actual Neo4j analysis result
                 if "LOAN PROGRAM ANALYSIS" in content or "MORTGAGE PROCESS GUIDANCE" in content:
-                    result_text.append("✅ Live Neo4j mortgage business rules executed!\n", style="bright_green")
+                    result_text.append(" Live Neo4j mortgage business rules executed!\n", style="bright_green")
                     result_text.append("📊 Real-time qualification analysis from graph database\n\n", style="bright_cyan")
                     result_text.append(f"{content[:400]}...\n", style="bright_white")
                 elif any(indicator in content for indicator in ['qualification', 'DTI', 'credit score', 'down payment']):
-                    result_text.append("✅ Business rule processing detected!\n", style="bright_green")
+                    result_text.append(" Business rule processing detected!\n", style="bright_green")
                     result_text.append("📊 Mortgage qualification logic applied\n\n", style="bright_cyan")
                     result_text.append(f"{content[:400]}...\n", style="bright_white")
                 else:
@@ -415,7 +415,7 @@ def show_execution_details(result, step_name):
     summary_text.append(f"🏦 Business Rule Tools: {len(business_tools_found)}\n", style="bright_white")
     
     if business_tools_found:
-        summary_text.append("\n✅ Business Tools Executed:\n", style="bold bright_green")
+        summary_text.append("\n Business Tools Executed:\n", style="bold bright_green")
         for tool in business_tools_found:
             summary_text.append(f"  • {tool}\n", style="bright_green")
     else:
@@ -500,7 +500,7 @@ def display_graph_structure():
         
     except Exception as e:
         console.print(Panel(
-            f"[bold bright_red]❌ Could not load graph structure: {e}[/bold bright_red]",
+            f"[bold bright_red] Could not load graph structure: {e}[/bold bright_red]",
             border_style="bright_red",
             padding=(1, 2)
         ))
@@ -532,10 +532,10 @@ def auto_demo():
     # Enhanced system status check
     show_status_update("Connecting to agent system...")
     if not check_server_status():
-        console.print(Panel("[bold red]❌ Agent system not accessible at http://127.0.0.1:2024[/bold red]", border_style="red"))
+        console.print(Panel("[bold red] Agent system not accessible at http://127.0.0.1:2024[/bold red]", border_style="red"))
         console.print("[yellow]Please ensure the agent system is running[/yellow]")
         return
-    console.print("✅ Connected successfully!", style="bright_green")
+    console.print(" Connected successfully!", style="bright_green")
     time.sleep(1)
     
     console.print("🎯 [bold green]Connected to agent system[/bold green]")
@@ -550,11 +550,11 @@ def auto_demo():
         console.print("⏳ Fallback: Finding existing assistant...", style="bright_yellow")
         assistant_id = get_assistant()
         if not assistant_id:
-            console.print(Panel("[bold red]❌ Failed to find any mortgage processing assistant[/bold red]", border_style="red"))
+            console.print(Panel("[bold red] Failed to find any mortgage processing assistant[/bold red]", border_style="red"))
             return
-        console.print("✅ Using existing assistant", style="bright_green")
+        console.print(" Using existing assistant", style="bright_green")
     else:
-        console.print("✅ Demo assistant created!", style="bright_green")
+        console.print(" Demo assistant created!", style="bright_green")
     time.sleep(1)
     
     console.print(f"🎯 [bold green]Assistant ready: {assistant_id}[/bold green]")
@@ -563,9 +563,9 @@ def auto_demo():
     show_status_update("Initializing conversation...")
     thread_id = create_thread()
     if not thread_id:
-        console.print(Panel("[bold red]❌ Failed to create conversation thread[/bold red]", border_style="red"))
+        console.print(Panel("[bold red] Failed to create conversation thread[/bold red]", border_style="red"))
         return
-    console.print("✅ Thread created!", style="bright_green")
+    console.print(" Thread created!", style="bright_green")
     time.sleep(1)
     
     console.print(f"🎯 [bold green]Conversation ready: {thread_id}[/bold green]")
@@ -609,8 +609,8 @@ def auto_demo():
     
     completion_text = Text()
     completion_text.append("\n🎯  APPLICATION INITIATED  🎯\n\n", style="bold bright_green")
-    completion_text.append("✅ Customer routed to application agent\n", style="bright_white")
-    completion_text.append("✅ Initial qualification assessment started\n", style="bright_white")
+    completion_text.append(" Customer routed to application agent\n", style="bright_white")
+    completion_text.append(" Initial qualification assessment started\n", style="bright_white")
     
     console.print(Panel(
         completion_text,
@@ -640,8 +640,8 @@ def auto_demo():
     
     completion_text = Text()
     completion_text.append("\n🎯  LOAN GUIDANCE PROVIDED  🎯\n\n", style="bold bright_green")
-    completion_text.append("✅ Personalized loan program recommendations\n", style="bright_white")
-    completion_text.append("✅ First-time buyer programs identified\n", style="bright_white")
+    completion_text.append(" Personalized loan program recommendations\n", style="bright_white")
+    completion_text.append(" First-time buyer programs identified\n", style="bright_white")
     
     console.print(Panel(
         completion_text,
@@ -665,9 +665,9 @@ def auto_demo():
     # Show document loading process
     console.print(Panel(
         "[bold bright_blue]📁 LOADING SAMPLE DOCUMENTS...\n\n"
-        "✅ Reading W-2 tax form (w2_2023_sarah_johnson.pdf)\n"
-        "✅ Reading pay stub (paystub_nov_2024_sarah_johnson.pdf)\n" 
-        "✅ Reading bank statement (bank_statement_nov_2024_sarah_johnson.pdf)\n\n"
+        " Reading W-2 tax form (w2_2023_sarah_johnson.pdf)\n"
+        " Reading pay stub (paystub_nov_2024_sarah_johnson.pdf)\n" 
+        " Reading bank statement (bank_statement_nov_2024_sarah_johnson.pdf)\n\n"
         "📊 Real document content loaded for demonstration",
         title="[bold bright_white]📂 DOCUMENT PREPARATION 📂[/bold bright_white]",
         border_style="bright_blue",
@@ -685,8 +685,8 @@ def auto_demo():
     
     completion_text = Text()
     completion_text.append("\n🎯  DOCUMENTS PROCESSED  🎯\n\n", style="bold bright_green")
-    completion_text.append("✅ W-2 and pay stubs reviewed\n", style="bright_white")
-    completion_text.append("✅ Additional document requirements provided\n", style="bright_white")
+    completion_text.append(" W-2 and pay stubs reviewed\n", style="bright_white")
+    completion_text.append(" Additional document requirements provided\n", style="bright_white")
     
     console.print(Panel(
         completion_text,
@@ -716,8 +716,8 @@ def auto_demo():
     
     completion_text = Text()
     completion_text.append("\n🎯  PROPERTY EVALUATED  🎯\n\n", style="bold bright_green")
-    completion_text.append("✅ Market analysis completed\n", style="bright_white")
-    completion_text.append("✅ Comparable sales reviewed\n", style="bright_white")
+    completion_text.append(" Market analysis completed\n", style="bright_white")
+    completion_text.append(" Comparable sales reviewed\n", style="bright_white")
     
     console.print(Panel(
         completion_text,
@@ -747,8 +747,8 @@ def auto_demo():
     
     completion_text = Text()
     completion_text.append("\n🎯  MORTGAGE JOURNEY COMPLETE  🎯\n\n", style="bold bright_green")
-    completion_text.append("✅ End-to-end mortgage process demonstrated\n", style="bright_white")
-    completion_text.append("✅ All specialized agents coordinated seamlessly\n", style="bright_white")
+    completion_text.append(" End-to-end mortgage process demonstrated\n", style="bright_white")
+    completion_text.append(" All specialized agents coordinated seamlessly\n", style="bright_white")
     
     console.print(Panel(
         completion_text,
@@ -785,26 +785,26 @@ def auto_demo():
     show_status_update("Cleaning up demo environment...")
     cleanup_success = delete_demo_assistant(assistant_id)
     if cleanup_success:
-        console.print("✅ Demo assistant cleaned up!", style="bright_green")
+        console.print(" Demo assistant cleaned up!", style="bright_green")
     else:
-        console.print("✅ Cleanup completed (assistant may be external)", style="bright_green")
+        console.print(" Cleanup completed (assistant may be external)", style="bright_green")
     time.sleep(1)
     
     # LARGE final message for screen sharing
     final_text = Text()
     if cleanup_success:
         final_text.append("\n🎉  MORTGAGE PROCESSING DEMO COMPLETED  🎉\n\n", style="bold bright_green")
-        final_text.append("✅ All steps executed successfully\n", style="bright_white")
-        final_text.append("✅ Real agent coordination demonstrated\n", style="bright_white")
-        final_text.append("✅ Neo4j business rules validated\n", style="bright_white")
-        final_text.append("✅ Demo environment cleaned up\n", style="bright_white")
+        final_text.append(" All steps executed successfully\n", style="bright_white")
+        final_text.append(" Real agent coordination demonstrated\n", style="bright_white")
+        final_text.append(" Neo4j business rules validated\n", style="bright_white")
+        final_text.append(" Demo environment cleaned up\n", style="bright_white")
         border_color = "bright_green"
         title = "[bold bright_white]🏆 DEMO SUCCESS 🏆[/bold bright_white]"
     else:
         final_text.append("\n🎯  MORTGAGE PROCESSING DEMO COMPLETED  🎯\n\n", style="bold bright_yellow")
-        final_text.append("✅ All steps executed successfully\n", style="bright_white")
-        final_text.append("✅ Real agent coordination demonstrated\n", style="bright_white")
-        final_text.append("✅ Neo4j business rules validated\n", style="bright_white")
+        final_text.append(" All steps executed successfully\n", style="bright_white")
+        final_text.append(" Real agent coordination demonstrated\n", style="bright_white")
+        final_text.append(" Neo4j business rules validated\n", style="bright_white")
         final_text.append("⚠️ Demo cleanup completed\n", style="bright_yellow")
         border_color = "bright_yellow"
         title = "[bold bright_white]🎯 DEMO COMPLETE 🎯[/bold bright_white]"

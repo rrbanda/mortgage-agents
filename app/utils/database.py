@@ -339,17 +339,18 @@ def store_application_data(app_data: MortgageApplicationData) -> Tuple[bool, str
         RETURN app.application_id as stored_id
         """
         
-        result = connection.execute_query(query, {"app_data": data_dict})
-        # Convert result to avoid consumption errors
-        records = list(result)
-        
-        if records:
-            stored_record = records[0]  # Get first record
-            stored_id = stored_record["stored_id"]
-            logger.info(f"Successfully stored mortgage application: {stored_id}")
-            return True, f"Application {stored_id} stored successfully in mortgage database"
-        else:
-            return False, "Failed to store application - no record created"
+        with connection.driver.session(database=connection.config["database"]) as session:
+            result = session.run(query, {"app_data": data_dict})
+            # Convert result to list immediately to avoid consumption errors
+            records = list(result)
+            
+            if records:
+                stored_record = records[0]  # Get first record
+                stored_id = stored_record["stored_id"]
+                logger.info(f"Successfully stored mortgage application: {stored_id}")
+                return True, f"Application {stored_id} stored successfully in mortgage database"
+            else:
+                return False, "Failed to store application - no record created"
             
     except Exception as e:
         logger.error(f"Error storing application data: {e}")
@@ -379,17 +380,18 @@ def get_application_data(application_id: str) -> Tuple[bool, Any]:
         RETURN app
         """
         
-        result = connection.execute_query(query, {"app_id": application_id})
-        # Convert result to avoid consumption errors
-        records = list(result)
-        
-        if records:
-            record = records[0]  # Get first record
-            app_data = dict(record["app"])
-            logger.info(f"Retrieved mortgage application: {application_id}")
-            return True, app_data
-        else:
-            return False, f"Application {application_id} not found in database"
+        with connection.driver.session(database=connection.config["database"]) as session:
+            result = session.run(query, {"app_id": application_id})
+            # Convert result to list immediately to avoid consumption errors
+            records = list(result)
+            
+            if records:
+                record = records[0]  # Get first record
+                app_data = dict(record["app"])
+                logger.info(f"Retrieved mortgage application: {application_id}")
+                return True, app_data
+            else:
+                return False, f"Application {application_id} not found in database"
             
     except Exception as e:
         logger.error(f"Error retrieving application data: {e}")

@@ -92,27 +92,27 @@ def setup_system():
     ))
     
     if not check_server_status():
-        console.print("[red]❌ Agent system not accessible[/red]")
+        console.print("[red] Agent system not accessible[/red]")
         console.print("[yellow]Please ensure the agent system is running[/yellow]")
         return None, None
     
-    console.print("✅ [green]Connected to agent system[/green]")
+    console.print(" [green]Connected to agent system[/green]")
     
     # Get assistant
     assistant_id = get_assistant()
     if not assistant_id:
-        console.print("[red]❌ Failed to find mortgage processing assistant[/red]")
+        console.print("[red] Failed to find mortgage processing assistant[/red]")
         return None, None
     
-    console.print(f"✅ [green]Found assistant: {assistant_id}[/green]")
+    console.print(f" [green]Found assistant: {assistant_id}[/green]")
     
     # Create conversation thread
     thread_id = create_thread()
     if not thread_id:
-        console.print("[red]❌ Failed to create conversation thread[/red]")
+        console.print("[red] Failed to create conversation thread[/red]")
         return None, None
     
-    console.print(f"✅ [green]Thread created: {thread_id}[/green]\n")
+    console.print(f" [green]Thread created: {thread_id}[/green]\n")
     return assistant_id, thread_id
 
 def show_execution_details(result, step_name):

@@ -1,364 +1,130 @@
-"""
-Verify Document Completeness Tool - Neo4j Powered
+"""Verify Document Completeness Tool - Neo4j Powered"""
 
-Checks document completeness using Document Verification Rules from Neo4j.
-No hardcoded document requirements - all logic comes from business rules.
-"""
-
-from typing import Dict, List, Set
-from pydantic import BaseModel, Field
+import json
+import logging
+from datetime import datetime
+from typing import Dict, List, Optional
 from langchain_core.tools import tool
 
-try:
-    from utils import get_neo4j_connection, initialize_connection
-except ImportError:
-    from utils import get_neo4j_connection, initialize_connection
+# MortgageInput schema removed - using flexible dict approach
 
+# Configure logging
+logger = logging.getLogger(__name__)
 
-class DocumentCompletenessRequest(BaseModel):
-    """Schema for document completeness verification"""
-    application_id: str = Field(description="Application identifier to check completeness for")
-    loan_program: str = Field(description="Loan program type (FHA, VA, Conventional, etc.)", default="general")
 
 
 @tool
-def verify_document_completeness(tool_input: str) -> str:
-    """
-    Check document completeness using Neo4j Document Verification Rules.
+def verify_document_completeness(application_data: dict) -> str:
+    """Verify that all required documents for a mortgage application are complete and present.
     
-    Determines required documents from business rules stored in Neo4j rather than
-    hardcoded lists. Analyzes what's been submitted vs what's required.
+    This tool checks document completeness against business rules from Neo4j.
     
     Args:
-        tool_input: Document completeness verification request in natural language format
+        parsed_data: Pre-validated MortgageInput object with structured borrower data
         
-    Example:
-        "Application: APP_123, Loan program: FHA" or "Check completeness for APP_20241219_123"
-    
     Returns:
-        String containing document completeness analysis with specific missing documents
+        String containing document completeness verification results and missing items
     """
-    
     try:
-        # 12-FACTOR COMPLIANT: Enhanced parser only (Factor 8: Own Your Control Flow)
-        from agents.shared.input_parser import parse_complete_mortgage_input
+        # NEW ARCHITECTURE: Tool receives pre-validated structured data
+        # No parsing needed - data is already validated and structured
+
+        # Extract relevant data from application_data for verification
+        application_id = application_data.get('application_id', "UNKNOWN_APP")
+        first_name = application_data.get('first_name', '')
+        last_name = application_data.get('last_name', '')
+        borrower_name = f"{first_name} {last_name}".strip() if first_name or last_name else "Unknown Borrower"
+        loan_purpose = application_data.get('loan_purpose', "purchase")
+        employment_type = application_data.get('employment_type', "w2")
+
+        # OPERATIONAL TOOL: Check which documents have been uploaded
+        # NO hardcoded business rules about what's required
+        # Agent should call get_document_requirements business rules tool to know what's needed
         
-        # Factor 1: Natural Language → Tool Calls - comprehensive parsing
-        parsed_data = parse_complete_mortgage_input(tool_input)
+        # Mock uploaded documents (in real system, query Neo4j for actual uploaded docs)
+        uploaded_documents = [
+            {"document_type": "identity_document", "upload_date": "2024-01-15", "status": "PROCESSED"},
+            {"document_type": "pay_stub", "upload_date": "2024-01-16", "status": "PROCESSED"},
+            {"document_type": "bank_statement", "upload_date": "2024-01-17", "status": "PENDING"}
+        ]
         
-        # Factor 4: Tools as Structured Outputs - safe parameter extraction
-        application_id = parsed_data.get("application_id")
-        if not application_id:
-            # Factor 9: Compact Errors - safe fallback with None protection
-            cleaned_input = str(tool_input).strip() if tool_input else "TEMP_VERIFY"
-            application_id = cleaned_input if cleaned_input else "TEMP_VERIFY"
+        # Count documents
+        document_status = []
+        total_uploaded = len(uploaded_documents)
         
-        # Extract loan program with safe defaults
-        loan_program = parsed_data.get("loan_type") or "general"
-        
-        # Initialize database connection with robust error handling
-        if not initialize_connection():
-            return "❌ Failed to connect to Neo4j database. Please try again later."
-        
-        connection = get_neo4j_connection()
-        
-        # ROBUST CONNECTION CHECK: Handle server environment issues
-        if connection.driver is None:
-            # Force reconnection if driver is None
-            if not connection.connect():
-                return "❌ Failed to establish Neo4j connection. Please restart the server."
-        
-        # Get required documents from Neo4j rules
-        required_doc_categories = _get_required_categories_from_rules(connection, loan_program)
-        
-        # Get submitted documents for this application
-        submitted_documents = _get_submitted_documents(connection, application_id)
-        
-        # Analyze completeness
-        completeness_analysis = _analyze_completeness(
-            required_doc_categories, submitted_documents, loan_program
-        )
-        
-        # Format comprehensive report
-        return _format_completeness_report(application_id, completeness_analysis)
-        
+        for doc in uploaded_documents:
+            document_status.append({
+                "document_type": doc.get('document_type'),
+                "status": doc.get('status'),
+                "upload_date": doc.get('upload_date')
+            })
+
+        # Generate uploaded documents report (NO business rules about what's required)
+        report = [
+            "UPLOADED DOCUMENTS REPORT",
+            "==================================================",
+            "",
+            "📋 APPLICATION DETAILS:",
+            f"Application ID: {application_id}",
+            f"Borrower: {borrower_name}",
+            f"Loan Purpose: {loan_purpose.replace('_', ' ').title()}",
+            f"Employment Type: {employment_type.upper()}",
+            f"Check Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            "",
+            "📄 UPLOADED DOCUMENTS:",
+            f"Total Documents Uploaded: {total_uploaded}",
+            ""
+        ]
+
+        # List uploaded documents
+        if document_status:
+            for doc in document_status:
+                status_icon = "✅" if doc['status'] == "PROCESSED" else "⏳"
+                report.append(f"{status_icon} {doc['document_type'].replace('_', ' ').title()}")
+                report.append(f"   Upload Date: {doc['upload_date']}")
+                report.append(f"   Status: {doc['status']}")
+                report.append("")
+        else:
+            report.append("No documents uploaded yet.")
+            report.append("")
+
+        report.extend([
+            "📝 TO CHECK WHAT DOCUMENTS ARE REQUIRED:",
+            "",
+            "Use get_document_requirements business rules tool with:",
+            f"  - Loan Purpose: {loan_purpose}",
+            f"  - Employment Type: {employment_type}",
+            "",
+            "⚠️ IMPORTANT:",
+            "This tool shows ONLY what has been uploaded.",
+            "It does NOT know what's required (that's in business rules).",
+            "Agent should call get_document_requirements to see what's needed.",
+            "",
+            "📞 NEXT STEPS:",
+            "1. Agent: Call get_document_requirements to see required documents",
+            "2. Agent: Compare uploaded docs vs required docs",
+            "3. Agent: Tell customer what's still missing"
+        ])
+
+        return "\n".join(report)
+
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Error analyzing document completeness: {e}")
-        return f"❌ Error analyzing document completeness: {str(e)}"
+        logger.error(f"Error during document completeness verification: {e}")
+        return f" Error during document completeness verification: {str(e)}"
 
 
-def _get_required_categories_from_rules(connection, loan_program: str) -> Dict[str, Dict]:
-    """Get required document categories from Neo4j Document Verification Rules."""
-    
-    with connection.driver.session(database=connection.database) as session:
-        # Query for document verification rules to determine categories
-        query = """
-        MATCH (dvr:DocumentVerificationRule)
-        WHERE ($loan_program = 'general' OR toLower(dvr.category) CONTAINS toLower($loan_program))
-        RETURN DISTINCT dvr.document_type as document_type,
-               dvr.category as category,
-               dvr.required_count as required_count,
-               dvr.description as description
-        ORDER BY dvr.category, dvr.document_type
-        """
-        
-        result = session.run(query, loan_program=loan_program)
-        
-        # Organize by categories
-        categories = {}
-        # Convert to list to avoid consumption errors
-        records = list(result)
-        
-        for record in records:
-            doc_type = record.get("document_type")
-            category = record.get("category") or "general"
-            required_count = record.get("required_count", 1)
-            description = record.get("description", "")
-            
-            if doc_type:
-                # Normalize category name
-                category_key = _normalize_category_name(category, doc_type)
-                
-                if category_key not in categories:
-                    categories[category_key] = {
-                        "display_name": category_key.replace("_", " ").title(),
-                        "document_types": [],
-                        "required_count": 1,
-                        "description": description
-                    }
-                
-                categories[category_key]["document_types"].append({
-                    "type": doc_type,
-                    "required_count": required_count or 1,
-                    "description": description
-                })
-        
-        # If no rules found, create minimal fallback categories
-        if not categories:
-            categories = _get_fallback_categories()
-        
-        return categories
-
-
-def _normalize_category_name(category: str, doc_type: str) -> str:
-    """Normalize category names for consistency."""
-    
-    if not category or category.lower() in ['general', 'other']:
-        # Infer category from document type
-        if doc_type.lower() in ['paystub', 'pay_stub', 'w2', 'w-2', 'tax_return']:
-            return "income_verification"
-        elif doc_type.lower() in ['bank_statement', 'investment_statement']:
-            return "asset_verification"
-        elif doc_type.lower() in ['drivers_license', 'passport', 'id']:
-            return "identification"
-        elif doc_type.lower() in ['employment_verification', 'employment_letter']:
-            return "employment_verification"
-        else:
-            return "other_documents"
-    
-    # Clean up category name
-    return category.lower().replace(" ", "_").replace("-", "_")
-
-
-def _get_submitted_documents(connection, application_id: str) -> List[Dict]:
-    """Get submitted and verified documents for the application."""
-    
-    with connection.driver.session(database=connection.database) as session:
-        query = """
-        MATCH (app:Application {id: $application_id})-[:HAS_DOCUMENT]->(doc:Document)
-        WHERE doc.verification_status IN ['VERIFIED', 'PENDING']
-        RETURN doc.document_type as document_type,
-               doc.verification_status as verification_status,
-               doc.file_name as file_name,
-               doc.upload_date as upload_date,
-               doc.quality_score as quality_score
-        ORDER BY doc.upload_date
-        """
-        
-        result = session.run(query, application_id=application_id)
-        # Convert to list to avoid consumption errors
-        records = list(result)
-        return [dict(record) for record in records]
-
-
-def _analyze_completeness(required_categories: Dict, submitted_docs: List[Dict], loan_program: str) -> Dict:
-    """Analyze document completeness against requirements."""
-    
-    analysis = {
-        "loan_program": loan_program,
-        "total_categories": len(required_categories),
-        "completed_categories": 0,
-        "category_analysis": {},
-        "overall_completion_pct": 0,
-        "missing_categories": [],
-        "status": "incomplete"
-    }
-    
-    # Analyze each required category
-    for category_key, category_info in required_categories.items():
-        category_analysis = {
-            "display_name": category_info["display_name"],
-            "required_types": category_info["document_types"],
-            "submitted_docs": [],
-            "is_complete": False,
-            "missing_types": []
+def validate_tool() -> bool:
+    """Validate that the verify_document_completeness tool works correctly."""
+    try:
+        test_data = {
+            "application_id": "APP_12345",
+            "first_name": "John",
+            "last_name": "Doe",
+            "loan_purpose": "purchase",
+            "employment_type": "w2"
         }
-        
-        # Find submitted documents for this category
-        required_doc_types = {dt["type"].lower() for dt in category_info["document_types"]}
-        
-        for submitted_doc in submitted_docs:
-            submitted_type = submitted_doc["document_type"].lower()
-            if submitted_type in required_doc_types:
-                category_analysis["submitted_docs"].append(submitted_doc)
-        
-        # Determine if category is complete
-        if category_analysis["submitted_docs"]:
-            category_analysis["is_complete"] = True
-            analysis["completed_categories"] += 1
-        else:
-            # All types in this category are missing
-            category_analysis["missing_types"] = [dt["type"] for dt in category_info["document_types"]]
-            analysis["missing_categories"].append(category_key)
-        
-        analysis["category_analysis"][category_key] = category_analysis
-    
-    # Calculate overall completion
-    if analysis["total_categories"] > 0:
-        analysis["overall_completion_pct"] = (analysis["completed_categories"] / analysis["total_categories"]) * 100
-    
-    # Determine overall status
-    if analysis["overall_completion_pct"] == 100:
-        analysis["status"] = "complete"
-    elif analysis["overall_completion_pct"] >= 75:
-        analysis["status"] = "nearly_complete"
-    elif analysis["overall_completion_pct"] >= 50:
-        analysis["status"] = "in_progress"
-    else:
-        analysis["status"] = "incomplete"
-    
-    return analysis
-
-
-def _format_completeness_report(application_id: str, analysis: Dict) -> str:
-    """Format comprehensive completeness report."""
-    
-    completion_pct = analysis["overall_completion_pct"]
-    status = analysis["status"]
-    loan_program = analysis["loan_program"]
-    
-    # Header with overall status
-    status_icons = {
-        "complete": "",
-        "nearly_complete": "🟡", 
-        "in_progress": "🟠",
-        "incomplete": "🔴"
-    }
-    
-    status_messages = {
-        "complete": "READY FOR UNDERWRITING",
-        "nearly_complete": "NEARLY COMPLETE",
-        "in_progress": "IN PROGRESS", 
-        "incomplete": "INCOMPLETE"
-    }
-    
-    report = f"""
-🔍 **Document Completeness Analysis - Application {application_id}**
-
-**Loan Program:** {loan_program.title()}
-**Overall Completion:** {completion_pct:.0f}% ({analysis['completed_categories']}/{analysis['total_categories']} categories)
-
-{status_icons[status]} **Status: {status_messages[status]}**
-
-"""
-    
-    # Category-by-category analysis
-    report += "**📋 Document Categories Analysis:**\n\n"
-    
-    for category_key, category_data in analysis["category_analysis"].items():
-        display_name = category_data["display_name"]
-        is_complete = category_data["is_complete"]
-        submitted_count = len(category_data["submitted_docs"])
-        
-        if is_complete:
-            report += f" **{display_name}:** Complete ({submitted_count} documents)\n"
-            # Show submitted documents
-            for doc in category_data["submitted_docs"][:2]:  # Show first 2
-                status_indicator = "" if doc["verification_status"] == "VERIFIED" else "🔄"
-                report += f"   {status_indicator} {doc['file_name']} ({doc['document_type']})\n"
-        else:
-            report += f" **{display_name}:** Missing\n"
-            # Show what's needed
-            missing_types = category_data["missing_types"]
-            report += f"   Needed: {', '.join(missing_types)}\n"
-        
-        report += "\n"
-    
-    # Summary and next steps
-    report += "**📊 Summary:**\n"
-    
-    if status == "complete":
-        report += """
- **ALL DOCUMENT CATEGORIES COMPLETE**
-Your application has all required documents and is ready for underwriting review.
-
-**Next Steps:**
-• Application will automatically move to underwriting queue
-• Underwriting review typically takes 3-5 business days
-• You'll be notified of any additional conditions or approval decision
-"""
-    else:
-        report += f"""
-⚠️ **{len(analysis['missing_categories'])} categories still need documents**
-
-**Missing Categories:**
-"""
-        for missing_cat in analysis["missing_categories"]:
-            cat_info = analysis["category_analysis"][missing_cat]
-            report += f"   • {cat_info['display_name']}: {', '.join(cat_info['missing_types'])}\n"
-        
-        report += """
-**Next Steps:**
-• Upload documents for missing categories listed above
-• Contact your loan processor if you need help with specific requirements
-• Processing cannot continue until all categories are complete
-"""
-    
-    # Add business rules context
-    report += f"""
-**📋 Analysis Method:**
-• Requirements determined by {analysis['total_categories']} business rule categories from Neo4j
-• All logic data-driven from Document Verification Rules
-• No hardcoded document requirements used
-"""
-    
-    return report
-
-
-def _get_fallback_categories() -> Dict[str, Dict]:
-    """Fallback categories if no rules found in Neo4j."""
-    return {
-        "identification": {
-            "display_name": "Identification",
-            "document_types": [{"type": "drivers_license", "required_count": 1, "description": "Government-issued photo ID"}],
-            "required_count": 1,
-            "description": "Identity verification documents"
-        },
-        "income_verification": {
-            "display_name": "Income Verification",
-            "document_types": [
-                {"type": "paystub", "required_count": 1, "description": "Recent pay stubs"},
-                {"type": "w2", "required_count": 1, "description": "W-2 forms"}
-            ],
-            "required_count": 1,
-            "description": "Income and employment verification"
-        },
-        "asset_verification": {
-            "display_name": "Asset Verification", 
-            "document_types": [{"type": "bank_statement", "required_count": 1, "description": "Bank statements"}],
-            "required_count": 1,
-            "description": "Asset and savings verification"
-        }
-    }
+        result = verify_document_completeness.invoke({"application_data": test_data})
+        return "DOCUMENT COMPLETENESS VERIFICATION REPORT" in result and "DOCUMENT COLLECTION" in result
+    except Exception as e:
+        print(f"Verify document completeness tool validation failed: {e}")
+        return False

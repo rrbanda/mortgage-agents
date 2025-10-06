@@ -9,11 +9,14 @@ This implements the routing workflow pattern where an LLM classifies
 input and directs it to specialized followup tasks.
 """
 
-from typing import TypedDict, Annotated, Sequence, Literal
+from typing import Annotated, Sequence, Literal
+from typing_extensions import TypedDict
 from pydantic import BaseModel, Field
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
+
+# Removed parser imports - agents now handle extraction via LLM
 
 # Import individual agents
 from .application_agent import create_application_agent
@@ -23,16 +26,14 @@ from .appraisal_agent import create_appraisal_agent
 from .underwriting_agent import create_underwriting_agent
 
 # Import LLM
-try:
-    from utils import get_llm, extract_message_content_and_files
-except ImportError:
-    from utils import get_llm, extract_message_content_and_files
+from utils import get_llm, extract_message_content_and_files
 
 
 class MortgageRoutingState(TypedDict):
     """State for multi-agent mortgage routing workflow"""
     messages: Annotated[Sequence[BaseMessage], add_messages]
     route_decision: str
+    current_agent: str  # Track which agent is currently active
 
 
 class RouteClassification(BaseModel):
@@ -46,6 +47,9 @@ class RouteClassification(BaseModel):
     ] = Field(description="The specialist agent best suited to handle this mortgage request")
 
 
+# Removed parse_input_node - agents now handle extraction via LLM
+
+
 def create_routing_node():
     """Create LLM-powered routing node following LangGraph routing pattern"""
     
@@ -55,24 +59,25 @@ def create_routing_node():
     def router(state: MortgageRoutingState):
         """Route classification using LLM with structured output"""
         
-        messages = state["messages"]
+        # Get the original message content for context
+        messages = state.get("messages", [])
         if not messages:
             return {"route_decision": "mortgage_advisor_agent"}
         
-        # Get user message content (handle both string and list formats)
+        # Get user message content for context
         user_messages = [msg for msg in messages if getattr(msg, 'type', None) == 'human']
         if not user_messages:
             return {"route_decision": "mortgage_advisor_agent"}
         
         last_user_message = user_messages[-1]
         
-        # AGENTIC: Let the LLM classifier SEE and REASON about file content
+        # Extract content for routing context
         try:
             # Extract full content including files for agent reasoning
             parsed_content = extract_message_content_and_files(last_user_message)
             content = parsed_content['full_content']  # LLM sees everything
             
-        except Exception as e:
+        except Exception:
             # Fallback to original parsing logic if enhanced parser fails
             content = ""
             if hasattr(last_user_message, 'content'):
@@ -84,6 +89,31 @@ def create_routing_node():
         
         if not content.strip():
             return {"route_decision": "mortgage_advisor_agent"}
+        
+        # SAFETY CHECK: Pre-routing document upload detection
+        document_indicators = [
+            "UPLOADED DOCUMENTS:",
+            "**UPLOADED DOCUMENTS:**",
+            "uploaded documents",
+            "attached documents", 
+            "submitted documents",
+            "document upload",
+            "file upload"
+        ]
+        
+        content_lower = content.lower()
+        for indicator in document_indicators:
+            if indicator.lower() in content_lower:
+                print(f"🔍 Pre-routing: Document upload detected via '{indicator}' - routing to document_agent")
+                return {"route_decision": "document_agent"}
+        
+        # Also check routing hint from file processing
+        try:
+            if parsed_content.get('routing_hint') == 'documents' and parsed_content.get('has_files'):
+                print(f"🔍 Pre-routing: File upload detected via routing_hint - routing to document_agent")
+                return {"route_decision": "document_agent"}
+        except:
+            pass
         
         # Build conversation context for context-aware routing
         conversation_context = ""
@@ -104,15 +134,28 @@ def create_routing_node():
         classification_prompt = [
             SystemMessage(content="""You are an intelligent mortgage processing coordinator. Use conversation context to understand the flow and route appropriately.
 
+**DOCUMENT UPLOAD DETECTION (ABSOLUTE PRIORITY):**
+- If the message contains "UPLOADED DOCUMENTS:" anywhere in the text, route to "document_agent" IMMEDIATELY
+- If the message contains "**UPLOADED DOCUMENTS:**" anywhere in the text, route to "document_agent" IMMEDIATELY  
+- If user says they "uploaded", "attached", or "submitted" documents, route to "document_agent"
+- Document uploads ALWAYS go to document_agent regardless of other content
+
 **CONTEXT-AWARE ROUTING GUIDELINES:**
 
-**CONVERSATION CONTEXT RULES (HIGHEST PRIORITY):**
+**CONVERSATION CONTEXT RULES (HIGH PRIORITY):**
 - If the previous agent asked a specific question and the user is providing an answer, route BACK to that same agent
 - If ApplicationAgent asked for personal info (name, DOB, etc.) and user provides it, route to "application_agent"
 - If DocumentAgent asked about documents and user responds, route to "document_agent"
 - Continue with the same agent until their task is completely finished
 
 **ROUTING GUIDELINES:**
+
+**document_agent**: Document processing, verification, uploads (CHECK FIRST)
+- Use when: Customer uploads documents OR mentions specific documents
+- CRITICAL: If you see "UPLOADED DOCUMENTS:" or "**UPLOADED DOCUMENTS:**" anywhere in content, route here
+- CRITICAL: If user mentions uploading, attaching, or submitting files, route here
+- Documents include: paystubs, W2s, bank statements, tax returns, ID, drivers license, etc.
+- Keywords: "upload", "attach", "submit documents", "process documents", "verify documents"
 
 **mortgage_advisor_agent**: General guidance, loan options, rates, eligibility
 - Use when: Customer asks questions about loan types, rates, qualification
@@ -123,11 +166,6 @@ def create_routing_node():
 - Keywords: "apply", "application", "submit", "URLA", "form", names, addresses, income, employment
 - IMPORTANT: If user is answering application questions (name, DOB, address, etc.), stay with application_agent
 
-**document_agent**: Document processing, verification, uploads
-- Use when: Customer uploads documents OR mentions specific documents
-- IMPORTANT: If you see "UPLOADED DOCUMENTS:" in the content, route here
-- Documents include: paystubs, W2s, bank statements, tax returns, ID, etc.
-
 **appraisal_agent**: Property valuation, market analysis
 - Use when: Questions about property value, appraisals, market conditions
 - Keywords: "value", "appraisal", "market", "worth", "price"
@@ -136,13 +174,16 @@ def create_routing_node():
 - Use when: Credit-related questions, approval status, lending decisions
 - Keywords: "approved", "credit", "decision", "underwriting"
 
-**REASONING APPROACH:**
-1. **FIRST**: Check conversation context - if user is responding to an agent's question, continue with that agent
-2. Check if documents are uploaded - if yes, route to document_agent
-3. Look at the main intent of the customer's request
-4. Route based on PRIMARY need and conversation flow
+**NOTE**: Business rules questions (loan program requirements, credit requirements, DTI limits) 
+should go to application_agent or mortgage_advisor_agent as they now have access to business rules tools.
 
-Prioritize conversation continuity over keyword matching."""),
+**REASONING APPROACH:**
+1. **FIRST**: Check for document uploads - if ANY document upload indicators, route to document_agent
+2. **SECOND**: Check conversation context - if user is responding to an agent's question, continue with that agent  
+3. **THIRD**: Look at the main intent of the customer's request
+4. **FOURTH**: Route based on PRIMARY need and conversation flow
+
+REMEMBER: Document uploads are HIGHEST PRIORITY and ALWAYS go to document_agent."""),
             HumanMessage(content=f"Recent conversation:\n{conversation_context}\n\nCurrent user message: {content}")
         ]
         
@@ -162,14 +203,14 @@ def route_to_agent(state: MortgageRoutingState) -> Literal["mortgage_advisor_age
 
 
 def create_agent_node(agent_name: str, agent):
-    """Create agentic execution node that provides enhanced content to agents"""
+    """Create agent execution node"""
     
     def agent_execution(state: MortgageRoutingState):
-        """Execute agent with enhanced message content for intelligent processing"""
+        """Execute agent with enhanced message content for document processing"""
         
         messages = state["messages"]
         if not messages:
-            return {"messages": []}
+            return {"messages": [], "current_agent": agent_name}
             
         # For document-related agents, enhance the last user message with file content
         if agent_name == "document_agent" and messages:
@@ -187,29 +228,31 @@ def create_agent_node(agent_name: str, agent):
                         print(f"🔍 DocumentAgent processing {parsed_content.get('file_count', 0)} uploaded files")
                     
                     # Create enhanced message for agent with all file content visible
-                    from langchain_core.messages import HumanMessage
-                    
-                    # Use first 2000 chars of full content to avoid RHOAI issues
                     content_to_send = parsed_content['full_content']
                     if len(content_to_send) > 2000:
                         content_to_send = content_to_send[:2000] + "\n\n[Content truncated for processing...]"
                         print(f"🔍 DEBUG: Truncated large content from {len(parsed_content['full_content'])} to {len(content_to_send)} chars")
                     
                     enhanced_message = HumanMessage(content=content_to_send)
-                    
-                    # Replace last user message with enhanced version
                     enhanced_messages = messages[:-1] + [enhanced_message]
                     
                     result = agent.invoke({"messages": enhanced_messages})
-                    return {"messages": result["messages"]}
+                    return {
+                        "messages": result["messages"], 
+                        "current_agent": agent_name
+                    }
                     
-            except Exception as e:
+            except Exception:
                 # Fallback to original messages if enhancement fails
                 pass
         
-        # Default execution for other agents or fallback
+        # Default execution for other agents
         result = agent.invoke({"messages": messages})
-        return {"messages": result["messages"]}
+        
+        return {
+            "messages": result["messages"], 
+            "current_agent": agent_name
+        }
     
     return agent_execution
 
@@ -230,7 +273,7 @@ def create_mortgage_routing_workflow():
     # Build routing workflow
     workflow = StateGraph(MortgageRoutingState)
     
-    # Add routing node
+    # Add routing node (first node - no parsing)
     routing_classifier = create_routing_node()
     workflow.add_node("router", routing_classifier)
     
@@ -241,7 +284,7 @@ def create_mortgage_routing_workflow():
     workflow.add_node("appraisal_agent", create_agent_node("appraisal_agent", appraisal_agent))
     workflow.add_node("underwriting_agent", create_agent_node("underwriting_agent", underwriting_agent))
     
-    # Entry point: routing
+    # Entry point: router (no parsing - direct LLM classification)
     workflow.add_edge("__start__", "router")
     
     # Conditional routing based on classification
@@ -257,12 +300,12 @@ def create_mortgage_routing_workflow():
         }
     )
     
-    # All agents terminate workflow after execution
-    workflow.add_edge("mortgage_advisor_agent", END)
+    # All agents go to END after execution (agents have business rules tools built-in)
     workflow.add_edge("application_agent", END)
     workflow.add_edge("document_agent", END)
-    workflow.add_edge("appraisal_agent", END)
     workflow.add_edge("underwriting_agent", END)
+    workflow.add_edge("appraisal_agent", END)
+    workflow.add_edge("mortgage_advisor_agent", END)
     
     return workflow.compile()
 

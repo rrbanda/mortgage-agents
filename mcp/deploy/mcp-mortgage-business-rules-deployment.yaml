@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-mortgage-business-rules
+  namespace: rh12026
+  labels:
+    app: mcp-mortgage-business-rules
+    component: mcp-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcp-mortgage-business-rules
+  template:
+    metadata:
+      labels:
+        app: mcp-mortgage-business-rules
+        component: mcp-server
+    spec:
+      containers:
+      - name: mcp-server
+        image: mcp/neo4j-cypher:latest
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: NEO4J_URI
+          value: "bolt://mortgage-db:7687"
+        - name: NEO4J_USERNAME
+          value: "neo4j"
+        - name: NEO4J_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mortgage-db-secret
+              key: neo4j-password
+        - name: NEO4J_DATABASE
+          value: "mortgage"
+        - name: NEO4J_TRANSPORT
+          value: "http"
+        - name: NEO4J_MCP_SERVER_HOST
+          value: "0.0.0.0"
+        - name: NEO4J_MCP_SERVER_PORT
+          value: "8080"
+        - name: NEO4J_MCP_SERVER_PATH
+          value: "/mcp/"
+        - name: NEO4J_READ_ONLY
+          value: "true"
+        - name: NEO4J_MCP_SERVER_ALLOWED_HOSTS
+          value: "*"
+        - name: NEO4J_READ_TIMEOUT
+          value: "30"
+        - name: NEO4J_RESPONSE_TOKEN_LIMIT
+          value: "4000"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          tcpSocket:
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          tcpSocket:
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-mortgage-business-rules-service
+  namespace: rh12026
+  labels:
+    app: mcp-mortgage-business-rules
+spec:
+  selector:
+    app: mcp-mortgage-business-rules
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  type: ClusterIP
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: mcp-mortgage-business-rules-route
+  namespace: rh12026
+  labels:
+    app: mcp-mortgage-business-rules
+spec:
+  to:
+    kind: Service
+    name: mcp-mortgage-business-rules-service
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

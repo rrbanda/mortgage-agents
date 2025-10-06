@@ -1,0 +1,47 @@
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+RUN pip install --no-cache-dir \
+    neo4j>=5.26.0 \
+    fastmcp>=2.10.5 \
+    pydantic>=2.10.1 \
+    tiktoken>=0.11.0
+
+# Copy the mcp-neo4j-cypher source from temp directory
+COPY temp/mcp-neo4j/servers/mcp-neo4j-cypher/src/ /app/src/
+COPY temp/mcp-neo4j/servers/mcp-neo4j-cypher/pyproject.toml /app/
+
+# Install the mcp-neo4j-cypher package
+RUN pip install --no-cache-dir -e .
+
+# Environment variables for Neo4j connection (will be overridden by OpenShift)
+ENV NEO4J_URI="bolt://mortgage-db-service:7687"
+ENV NEO4J_USERNAME="neo4j"
+ENV NEO4J_PASSWORD="mortgage123"
+ENV NEO4J_DATABASE="mortgage"
+ENV NEO4J_NAMESPACE=""
+ENV NEO4J_TRANSPORT="http"
+ENV NEO4J_MCP_SERVER_HOST="0.0.0.0"
+ENV NEO4J_MCP_SERVER_PORT="8080"
+ENV NEO4J_MCP_SERVER_PATH="/mcp/"
+ENV NEO4J_MCP_SERVER_ALLOW_ORIGINS=""
+ENV NEO4J_MCP_SERVER_ALLOWED_HOSTS="*"
+ENV NEO4J_READ_ONLY="true"
+
+# Expose port
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8080/mcp/ || exit 1
+
+# Command to run the server
+CMD ["mcp-neo4j-cypher", "--transport", "http", "--server-host", "0.0.0.0", "--server-port", "8080", "--read-only"]

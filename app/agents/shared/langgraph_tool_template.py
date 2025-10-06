@@ -5,7 +5,7 @@
 This template represents the OPTIMAL pattern for LangGraph tools that work reliably
 with LLM agents. All tools should follow this exact pattern for consistency.
 
-✅ PROVEN WORKING PATTERN:
+ PROVEN WORKING PATTERN:
 - Simple @tool decorator (no complex schemas)
 - Single parameter: tool_input: str
 - Return type: str (not Dict[str, Any])
@@ -13,7 +13,7 @@ with LLM agents. All tools should follow this exact pattern for consistency.
 - Proper error handling
 - Clear docstring with Args/Returns
 
-❌ AVOID THESE ANTIPATTERNS:
+ AVOID THESE ANTIPATTERNS:
 - Multiple parameters (breaks LLM tool calling)
 - Complex @tool decorators with schemas
 - Returning Dict[str, Any] (LLMs need strings)
@@ -24,7 +24,6 @@ with LLM agents. All tools should follow this exact pattern for consistency.
 from langchain_core.tools import tool
 from typing import Any
 import logging
-from agents.shared.input_parser import parse_mortgage_application
 from utils.database import initialize_connection, get_neo4j_connection
 
 # Configure logging
@@ -32,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 @tool
-def template_tool(tool_input: str) -> str:
+def template_tool(application_data: dict) -> str:
     """
     [DESCRIPTIVE TOOL PURPOSE] - One line summary of what this tool does.
     
@@ -42,19 +41,18 @@ def template_tool(tool_input: str) -> str:
     - What kind of analysis/processing it provides
     
     Args:
-        tool_input: [DESCRIPTION OF EXPECTED INPUT FORMAT]
+        application_data: Dictionary containing application data extracted by agent
         
     Example:
-        "Credit: 720, Income: 95000, Loan: 390000, Property: 450000, DTI: 15.2%"
+        {"credit_score": 720, "monthly_income": 95000, "loan_amount": 390000, "property_value": 450000}
     
     Returns:
         String containing [DESCRIPTION OF OUTPUT FORMAT]
     """
     
     try:
-        # 1. STANDARDIZED INPUT PARSING
-        # Use shared parser for consistent data extraction
-        parsed_data = parse_mortgage_application(tool_input)
+        # 1. Data already extracted by agent/LLM
+        parsed_data = application_data
         
         # 2. EXTRACT REQUIRED PARAMETERS
         # Get all needed values with proper defaults
@@ -70,7 +68,7 @@ def template_tool(tool_input: str) -> str:
         # Check for critical missing data
         if not required_param_1 or required_param_2 <= 0:
             return f"""
-❌ **MISSING REQUIRED INFORMATION**
+ **MISSING REQUIRED INFORMATION**
 
 This tool requires:
 • [List required data points]
@@ -108,7 +106,7 @@ Please provide the missing information and try again.
             f"• Key Finding 1: {result_data['finding_1']}",
             f"• Key Finding 2: {result_data['finding_2']}",
             "",
-            "✅ **RECOMMENDATIONS:**",
+            " **RECOMMENDATIONS:**",
             f"• {result_data['recommendation_1']}",
             f"• {result_data['recommendation_2']}",
             "",
@@ -120,7 +118,7 @@ Please provide the missing information and try again.
     except Exception as e:
         # 8. CONSISTENT ERROR HANDLING
         logger.error(f"Error in [tool_name]: {e}")
-        return f"❌ Error processing [tool_name]: {str(e)}"
+        return f" Error processing [tool_name]: {str(e)}"
 
 
 def _perform_core_business_logic(param_1: Any, param_2: Any, rules: list) -> dict:
@@ -151,12 +149,12 @@ def test_template_tool():
     
     try:
         result = template_tool.invoke({"tool_input": test_input})
-        print(f"✅ Template tool test passed")
+        print(f" Template tool test passed")
         print(f"📊 Output type: {type(result)}")
         print(f"📝 Output length: {len(result)} characters")
         return True
     except Exception as e:
-        print(f"❌ Template tool test failed: {e}")
+        print(f" Template tool test failed: {e}")
         return False
 
 

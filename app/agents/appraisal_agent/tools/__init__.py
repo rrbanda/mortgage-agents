@@ -1,28 +1,21 @@
 """
 AppraisalAgent Tools Package
 
-This package aggregates all specialized tools for the AppraisalAgent,
-ensuring they are properly exposed and validated for property appraisal use.
+Operational tools for property appraisal (NO hardcoded business rules).
 
-The AppraisalAgent focuses on 5 core property appraisal capabilities:
-1. Property value analysis using multiple appraisal approaches
-2. Comparable sales research and analysis
-3. Property condition assessment for lending
-4. Appraisal report review and compliance validation
-5. Market conditions evaluation and impact analysis
+The AppraisalAgent has 5 operational tools:
+1. analyze_property_value: Property valuation analysis
+2. find_comparable_sales: Research comparable properties
+3. assess_property_condition: Property condition assessment
+4. review_appraisal_report: Review appraisal documents
+5. evaluate_market_conditions: Market trend evaluation
 
-Currently Implemented Tools (All 5 - 100% data-driven from Neo4j):
-- analyze_property_value: Comprehensive property valuation analysis
-- find_comparable_sales: Comparable sales research and adjustment analysis
-- assess_property_condition: Property condition evaluation for lending standards
-- review_appraisal_report: Appraisal report compliance and quality review
-- evaluate_market_conditions: Market analysis and valuation impact assessment
+Each tool:
+- Performs operational tasks (analyze, research, assess, review)
+- NO hardcoded business rules about LTV limits or appraisal standards
+- Calls Neo4j DIRECTLY (not via MCP) for operational data
 
-Each tool module contains:
-- Tool implementation with @tool decorator
-- Pydantic schema for arguments
-- Validation function for testing
-- Neo4j integration for real appraisal rules
+Business rules tools (from shared/rules/) are added separately in agent.py
 """
 
 from typing import List, Dict, Any
@@ -38,14 +31,16 @@ from .evaluate_market_conditions import evaluate_market_conditions, validate_too
 
 def get_all_appraisal_agent_tools() -> List[BaseTool]:
     """
-    Returns a list of all tools available to the AppraisalAgent.
+    Get all operational tools for AppraisalAgent.
     
-    All tools are 100% data-driven from Neo4j knowledge graph:
-    - Property value analysis using multiple approaches (analyze_property_value)
-    - Comparable sales research and analysis (find_comparable_sales)
-    - Property condition assessment for lending (assess_property_condition)
-    - Appraisal report review and compliance (review_appraisal_report)
-    - Market conditions evaluation and impact (evaluate_market_conditions)
+    These are operational tools that:
+    - Analyze property value and market conditions
+    - Research comparable sales
+    - Assess property condition
+    - Review appraisal reports
+    - NO business rules about LTV limits or appraisal standards
+    
+    Returns 5 operational tools (business rules tools added separately in agent.py)
     """
     return [
         analyze_property_value,
@@ -61,11 +56,11 @@ def get_tool_descriptions() -> Dict[str, str]:
     Returns a dictionary of tool names and their descriptions.
     """
     return {
-        "analyze_property_value": "Comprehensive property valuation analysis using sales comparison, cost, and income approaches based on Neo4j appraisal rules",
-        "find_comparable_sales": "Find and analyze comparable sales with adjustment analysis based on property type and market requirements from Neo4j",
-        "assess_property_condition": "Evaluate property condition for lending standards and loan program requirements using Neo4j condition rules",
-        "review_appraisal_report": "Review and validate appraisal reports for compliance with industry standards and loan program requirements from Neo4j",
-        "evaluate_market_conditions": "Analyze market conditions and their impact on property valuation and lending decisions using Neo4j market rules"
+        "analyze_property_value": "Analyze property valuation - NO business rules, displays property info",
+        "find_comparable_sales": "Research comparable sales in the area - operational analysis",
+        "assess_property_condition": "Assess physical property condition - NO hardcoded standards",
+        "review_appraisal_report": "Review appraisal report documents - operational review",
+        "evaluate_market_conditions": "Evaluate market trends and conditions - NO threshold rules"
     }
 
 

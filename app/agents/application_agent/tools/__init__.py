@@ -1,29 +1,27 @@
 """
 ApplicationAgent Tools Package
 
-This package aggregates all specialized tools for the ApplicationAgent,
-ensuring they are properly exposed and validated for mortgage application intake use.
+This package contains tools for the ApplicationAgent focused on mortgage application
+data collection and management (NOT business rules enforcement).
 
-The ApplicationAgent focuses on 6 core application management capabilities:
-1. Mortgage application intake and validation
-2. Application completeness verification
-3. Initial qualification assessment and pre-screening
-4. Workflow routing coordination across agents
-5. Application status tracking and management
-6. URLA Form 1003 generation and compliance
+The ApplicationAgent focuses on 5 core application management capabilities:
+1. Mortgage application intake and storage
+2. Application completeness verification (basic fields only)
+3. Financial metrics calculation (DTI, LTV - informational only)
+4. Application status tracking and retrieval
+5. URLA Form 1003 generation
 
-Currently Implemented Tools (All 6 - 100% data-driven from Neo4j):
-- receive_mortgage_application: Complete application intake and validation
-- check_application_completeness: Verify all required documentation and data
-- perform_initial_qualification: Pre-screening and qualification assessment
-- track_application_status: Comprehensive status tracking and milestone management
-- generate_urla_1003_form: Standardized URLA Form 1003 generation with compliance validation
+Currently Implemented Tools (5 operational tools):
+- receive_mortgage_application: Collect and store application data in Neo4j
+- check_application_completeness: Verify basic required fields are present
+- perform_initial_qualification: Calculate financial metrics (DTI, LTV)
+- track_application_status: Retrieve application status by ID
+- generate_urla_1003_form: Generate URLA form from stored data
 
-Each tool module contains:
-- Tool implementation with @tool decorator
-- Pydantic schema for arguments
-- Validation function for testing
-- Neo4j integration for real application intake rules
+Business Rules:
+- Application Agent does NOT enforce business rules
+- For qualification decisions, use MortgageAdvisorAgent
+- For business rules queries, use BusinessRulesAgent tools from shared/rules/
 """
 
 from typing import List, Dict, Any
@@ -36,44 +34,45 @@ from .perform_initial_qualification import perform_initial_qualification, valida
 from .track_application_status import track_application_status, validate_tool as validate_track_application_status
 from .generate_urla_1003_form import generate_urla_1003_form, validate_tool as validate_generate_urla_1003_form
 
-# Import shared application data tools for all agents
-try:
-    from agents.shared.application_data_tools import (
-        get_stored_application_data,
-        list_stored_applications,
-        find_application_by_name
-    )
-except ImportError:
-    from agents.shared.application_data_tools import (
-        get_stored_application_data,
-        list_stored_applications,
-        find_application_by_name
-    )
+# Import MCP credit check tools (shared with UnderwritingAgent)
+# ApplicationAgent can fetch credit data during initial application intake
+from ...underwriting_agent.tools.get_credit_score import get_credit_score
+from ...underwriting_agent.tools.verify_identity import verify_identity
 
 
 def get_all_application_agent_tools() -> List[BaseTool]:
     """
     Returns a list of all tools available to the ApplicationAgent.
     
-    All tools are 100% data-driven from Neo4j knowledge graph:
-    - Mortgage application intake and validation (receive_mortgage_application)
-    - Application completeness verification (check_application_completeness)
-    - Initial qualification assessment (perform_initial_qualification)
-    - Application status tracking and management (track_application_status)
-    - URLA Form 1003 generation and compliance (generate_urla_1003_form)
+    Operational Tools (7 total):
+    
+    Core Application Tools (5):
+    - receive_mortgage_application: Store application data in MortgageApplication nodes
+    - check_application_completeness: Check basic required fields are present
+    - perform_initial_qualification: Calculate DTI/LTV metrics (informational only)
+    - track_application_status: Retrieve application status by application_id
+    - generate_urla_1003_form: Generate URLA form from stored data
+    
+    MCP Credit Tools (2 - for fetching missing data):
+    - get_credit_score: Fetch credit score from external MCP server when not provided
+    - verify_identity: Verify borrower identity via external MCP server
+    
+    Business Rules Tools:
+    - Application Agent does NOT have business rules tools
+    - For business rules, call shared/rules tools via BusinessRulesAgent
     """
-    return [
-        receive_mortgage_application,  # Now enabled - application storage functionality
+    core_tools = [
+        receive_mortgage_application,
         check_application_completeness,
         perform_initial_qualification,
         track_application_status,
         generate_urla_1003_form,
-        
-        # Shared application data tools for accessing stored applications
-        get_stored_application_data,
-        list_stored_applications,
-        find_application_by_name
+        # MCP tools for fetching missing borrower data
+        get_credit_score,
+        verify_identity
     ]
+    
+    return core_tools
 
 
 def get_tool_descriptions() -> Dict[str, str]:
@@ -81,11 +80,13 @@ def get_tool_descriptions() -> Dict[str, str]:
     Returns a dictionary of tool names and their descriptions.
     """
     return {
-        "receive_mortgage_application": "Complete mortgage application intake with validation and initial processing using Neo4j application rules",
-        "check_application_completeness": "Verify application completeness against loan type and employment requirements using Neo4j validation rules",
-        "perform_initial_qualification": "Assess initial qualification across multiple loan programs and provide routing recommendations using Neo4j qualification rules",
-        "track_application_status": "Comprehensive application status tracking, milestone management, and progress reporting using Neo4j status rules",
-        "generate_urla_1003_form": "Generate standardized URLA Form 1003 from application data with compliance validation using Neo4j URLA rules"
+        "receive_mortgage_application": "Collect and store mortgage application data in Neo4j MortgageApplication nodes",
+        "check_application_completeness": "Check if basic required fields are present in application (no business rules enforcement)",
+        "perform_initial_qualification": "Calculate financial metrics (DTI, LTV) for informational purposes only",
+        "track_application_status": "Retrieve application status and details by application_id from Neo4j",
+        "generate_urla_1003_form": "Generate URLA Form 1003 from stored application data",
+        "get_credit_score": "Fetch credit score from external MCP server when not provided by borrower",
+        "verify_identity": "Verify borrower identity via external MCP server"
     }
 
 
@@ -103,9 +104,9 @@ def validate_all_tools() -> Dict[str, bool]:
 
 
 __all__ = [
-    # All 6 implemented tools
+    # All core application tools
     "receive_mortgage_application",
-    "check_application_completeness",
+    "check_application_completeness", 
     "perform_initial_qualification",
     "track_application_status",
     "generate_urla_1003_form",

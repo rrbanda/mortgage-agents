@@ -47,6 +47,32 @@ neo4j:
   connection_acquisition_timeout: 60
   enable_mcp: true
 
+# MCP Server configuration for external service integration
+mcp:
+  # Credit check MCP server configuration
+  credit_check:
+    # OpenShift deployed MCP server (production) - HTTPS with TLS edge termination
+    # FastMCP SSE endpoint requires /sse path
+    url: "https://mcp-credit-check-proxy-rh12026.apps.cluster-k2ds9.k2ds9.sandbox2151.opentlc.com/sse"
+    # Local development fallback
+    local_url: "http://localhost:8081/sse"
+    timeout_seconds: 30
+    retry_attempts: 3
+    enabled: true
+  
+  # Mortgage Rules MCP server configuration
+  mortgage_rules:
+    url: "https://mcp-mortgage-business-rules-route-rh12026.apps.prod.rhoai.rh-aiservices-bu.com/mcp/"
+    local_url: "http://localhost:8080" # Placeholder for local testing if needed
+    timeout_seconds: 30
+    retry_attempts: 3
+    enabled: true
+  
+  # Future MCP servers can be added here
+  # appraisal_service:
+  #   url: "http://mcp-appraisal-service.example.com"
+  #   enabled: false
+
 # Agent instructions for different processing types
 agent_instructions:
   # Instructions for CHAT conversations (general Q&A)

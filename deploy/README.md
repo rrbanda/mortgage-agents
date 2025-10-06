@@ -21,7 +21,10 @@ deploy/
 ├── storage.yaml           # Persistent storage, services, and routes
 ├── deployment.yaml        # Main application deployment
 ├── kustomization.yaml     # Kustomize configuration
-└── deploy.sh             # Deployment automation script
+├── deploy.sh             # Deployment automation script
+└── openshift/             # OpenShift-specific deployments
+    ├── openshift-deployment.yaml        # Standard OpenShift deployment
+    └── openshift-deployment-multiarch.yaml # Multi-architecture deployment
 ```
 
 ## Prerequisites
@@ -62,6 +65,7 @@ stringData:
 
 ### 3. Deploy to OpenShift
 
+#### Option A: Using Kustomize (Recommended)
 ```bash
 cd deploy/
 
@@ -71,6 +75,19 @@ REGISTRY=quay.io/rbrhssa IMAGE_TAG=v1.0.0 ./deploy.sh deploy
 # Update existing deployment with new image
 IMAGE_TAG=v1.1.0 ./deploy.sh update
 ```
+
+#### Option B: Using OpenShift-Specific Deployments
+```bash
+# Standard OpenShift deployment
+oc apply -f openshift/openshift-deployment.yaml
+
+# Multi-architecture deployment (for mixed ARM64/AMD64 clusters)
+oc apply -f openshift/openshift-deployment-multiarch.yaml
+```
+
+**Deployment Options:**
+- **Standard**: `openshift-deployment.yaml` - Single architecture deployment
+- **Multi-arch**: `openshift-deployment-multiarch.yaml` - Supports both ARM64 and AMD64 architectures
 
 ## Build Script (`build.sh`)
 

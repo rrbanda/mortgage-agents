@@ -69,6 +69,30 @@ class Neo4jConfig(BaseModel):
     enable_mcp: bool = True
 
 
+class MCPCreditCheckConfig(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+    url: str
+    local_url: str = "http://localhost:8081"
+    timeout_seconds: int = 30
+    retry_attempts: int = 3
+    enabled: bool = True
+
+
+class MCPMortgageRulesConfig(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+    url: str
+    local_url: str = "http://localhost:8080"
+    timeout_seconds: int = 30
+    retry_attempts: int = 3
+    enabled: bool = True
+
+
+class MCPConfig(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+    credit_check: MCPCreditCheckConfig
+    mortgage_rules: MCPMortgageRulesConfig
+
+
 class DocumentRequirementConfig(MortgageBaseModel):
     document_type: str  # Keep as string for YAML compatibility, validate at runtime
     quantity: int  # Alias for quantity_needed to maintain compatibility
@@ -172,6 +196,7 @@ class AppConfig(BaseModel):
     vector_db: VectorDBConfig
     database: DatabaseConfig
     neo4j: Neo4jConfig
+    mcp: MCPConfig
     agent_instructions: AgentInstructionsConfig
     prompts: PromptsConfig
     agents: List[AgentDefinitionConfig]
@@ -201,6 +226,12 @@ class AppConfig(BaseModel):
             cfg.neo4j.password = os.getenv("NEO4J_PASSWORD")
         cfg.neo4j.database = os.getenv("NEO4J_DATABASE", cfg.neo4j.database)
         cfg.neo4j.enable_mcp = os.getenv("NEO4J_ENABLE_MCP", "true").lower() == "true"
+
+        # MCP environment overrides
+        cfg.mcp.credit_check.url = os.getenv("MCP_CREDIT_CHECK_URL", cfg.mcp.credit_check.url)
+        cfg.mcp.credit_check.local_url = os.getenv("MCP_CREDIT_CHECK_LOCAL_URL", cfg.mcp.credit_check.local_url)
+        cfg.mcp.credit_check.timeout_seconds = int(os.getenv("MCP_CREDIT_CHECK_TIMEOUT", str(cfg.mcp.credit_check.timeout_seconds)))
+        cfg.mcp.credit_check.enabled = os.getenv("MCP_CREDIT_CHECK_ENABLED", "true").lower() == "true"
 
         return cfg
 
@@ -298,6 +329,20 @@ class AppConfig(BaseModel):
     def get_completion_message(self, message_type: str) -> str:
         """Get completion message for a specific type."""
         return self.mortgage.business_logic.completion_messages.get(message_type, "Processing completed")
+    
+    def get_mcp_credit_check_url(self, use_local: bool = False) -> str:
+        """Get MCP credit check server URL."""
+        if use_local:
+            return self.mcp.credit_check.local_url
+        return self.mcp.credit_check.url
+    
+    def is_mcp_credit_check_enabled(self) -> bool:
+        """Check if MCP credit check is enabled."""
+        return self.mcp.credit_check.enabled
+    
+    def get_mcp_credit_check_config(self) -> MCPCreditCheckConfig:
+        """Get complete MCP credit check configuration."""
+        return self.mcp.credit_check
 
 
 # =============================================================================

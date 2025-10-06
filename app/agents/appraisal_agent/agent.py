@@ -1,47 +1,57 @@
 """
 AppraisalAgent Implementation
 
-This agent provides intelligent property appraisal and valuation analysis using specialized
-tools and Neo4j knowledge graph integration for rule-based assessments.
+This agent provides intelligent property appraisal and valuation analysis.
 
-The AppraisalAgent focuses on:
-- Property value analysis using multiple appraisal approaches
-- Comparable sales research and analysis  
+The AppraisalAgent has 6 tools total:
+
+Operational Tools (5 - agent-specific):
+- analyze_property_value: Property valuation analysis
+- find_comparable_sales: Research comparable properties
+- assess_property_condition: Property condition assessment
+- review_appraisal_report: Review appraisal documents
+- evaluate_market_conditions: Market trend evaluation
+
+Business Rules Tools (1 - scoped to appraisal needs):
+- get_property_appraisal_rules: Query LTV limits, appraisal standards, condition requirements from Neo4j via MCP
+
+The agent focuses on:
+- Property value analysis and comparable sales research
 - Property condition assessment for lending standards
 - Appraisal report review and compliance validation
 - Market conditions evaluation and impact analysis
-- Knowledge graph-powered intelligent appraisal decisions
 """
 
 from typing import Dict
 from langgraph.prebuilt import create_react_agent
 from pathlib import Path
 
-try:
-    from utils import get_llm
-except ImportError:
-    # Fallback for relative imports during testing
-    from utils import get_llm
-
+from utils import get_llm
 from utils.config import AppConfig
 from .tools import get_all_appraisal_agent_tools
-from agents.shared.prompt_loader import load_agent_prompt
+from ..shared.rules import get_property_appraisal_rules
+from ..shared.prompt_loader import load_agent_prompt
 
 
 def create_appraisal_agent():
     """
     Create AppraisalAgent using LangGraph's prebuilt create_react_agent.
     
-    This creates a specialized agent for property appraisal and valuation analysis using
-    LangGraph's production-ready ReAct agent with focused tool integration.
+    This creates a specialized agent for property appraisal with:
+    - 5 Operational tools (value analysis, comparables, condition, review, market)
+    - 1 Business rules tool (scoped to appraisal needs):
+      * get_property_appraisal_rules - Query LTV limits, appraisal standards from Neo4j via MCP
+    
+    Architecture:
+    - Operational tools: NO hardcoded business rules, just operational analysis
+    - Business rules tool: Queries Neo4j via MCP for actual requirements
+    - Agent decides when to call business rules tool based on customer questions
     
     Features:
     - Built-in memory and state management
     - Streaming capabilities for real-time analysis
     - Human-in-the-loop support for complex valuations
-    - Proper error handling and validation
-    - Tool isolation for clean appraisal functionality
-    - Neo4j knowledge graph integration for intelligent decisions
+    - Clean separation: operational vs. business rules
     
     Returns:
         Compiled LangGraph agent ready for execution
@@ -53,8 +63,16 @@ def create_appraisal_agent():
     # Get centralized LLM from factory
     llm = get_llm()
     
-    # Get all AppraisalAgent-specific tools
-    tools = get_all_appraisal_agent_tools()
+    # Get operational tools (agent-specific, no business rules)
+    operational_tools = get_all_appraisal_agent_tools()
+    
+    # Get only the business rules tool needed for appraisal scope
+    business_rules_tools = [
+        get_property_appraisal_rules
+    ]
+    
+    # Combine both sets of tools (5 operational + 1 business rules = 6 total)
+    tools = operational_tools + business_rules_tools
     
     # Load system prompt from YAML using shared prompt loader
     # Explicitly pass the agent directory to ensure correct path detection
@@ -65,8 +83,7 @@ def create_appraisal_agent():
     agent = create_react_agent(
         model=llm,
         tools=tools,
-        prompt=system_prompt,
-        name="appraisal_agent"
+        prompt=system_prompt
     )
     
     return agent

@@ -1,0 +1,57 @@
+mcpFileVersion: 0.0.1
+servers:
+- name: Mock Credit Bureau API
+  runtime:
+    streamableHttpConfig:
+      basePath: ""
+      port: 8080
+      stateless: false
+    transportProtocol: streamablehttp
+  tools:
+  - description: Comprehensive credit report with trade lines and payment history
+    inputSchema:
+      properties:
+        ssn:
+          type: string
+      type: object
+    invocation:
+      http:
+        method: POST
+        url: http://localhost:8081/credit-report
+    name: post_credit-report
+    title: Get detailed credit report
+  - description: Pull tri-bureau credit scores and mortgage eligibility data
+    inputSchema:
+      properties:
+        first_name:
+          type: string
+        last_name:
+          type: string
+        ssn:
+          type: string
+      type: object
+    invocation:
+      http:
+        method: POST
+        url: http://localhost:8081/credit-score
+    name: post_credit-score
+    title: Get credit scores for mortgage qualification
+  - description: Cross-reference personal information with credit bureau records
+    inputSchema:
+      properties:
+        date_of_birth:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        ssn:
+          type: string
+      type: object
+    invocation:
+      http:
+        method: POST
+        url: http://localhost:8081/verify-identity
+    name: post_verify-identity
+    title: Verify borrower identity against credit file
+  version: 0.0.1

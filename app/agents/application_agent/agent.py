@@ -1,30 +1,42 @@
 """
 ApplicationAgent Implementation
 
-This agent provides intelligent mortgage application intake and workflow coordination
-using specialized tools and Neo4j knowledge graph integration for rule-based processing.
+This agent manages mortgage application lifecycle: data collection, storage, and basic completeness checks.
 
-The ApplicationAgent focuses on:
-- Mortgage application intake and validation
-- Application completeness verification
-- Initial qualification assessment and pre-screening
-- Workflow routing coordination across agents  
-- Application status tracking and management
-- Knowledge graph-powered intelligent application decisions
+The ApplicationAgent has two types of tools (9 total):
+
+1. Operational Tools (from application_agent/tools/) - 7 tools:
+   - receive_mortgage_application: Collect & store application data
+   - track_application_status: Retrieve application status by ID
+   - generate_urla_1003_form: Generate URLA forms
+   - perform_initial_qualification: Calculate financial metrics (DTI, LTV)
+   - check_application_completeness: Check basic required fields
+   - get_credit_score (MCP): Fetch credit score from external MCP server when not provided
+   - verify_identity (MCP): Verify borrower identity via external MCP server
+
+2. Business Rules Tools (from shared/rules/) - 2 tools (scoped to application needs):
+   - get_application_intake_rules: Get required fields for loan programs
+   - get_loan_program_requirements: Get basic loan program information
+
+This architecture ensures:
+- No hardcoded business rules in agent tools
+- Agent can fetch missing borrower data (credit score) via MCP server
+- Agent only has business rules tools relevant to its scope
+- Clean separation: operational vs. business rules
+- Other agents handle: document processing, property valuation, underwriting decisions
 """
 
 from typing import Dict
 from langgraph.prebuilt import create_react_agent
 from pathlib import Path
 
-try:
-    from utils import get_llm
-except ImportError:
-    # Fallback for relative imports during testing
-    from utils import get_llm
-
+from utils import get_llm
 from utils.config import AppConfig
 from .tools import get_all_application_agent_tools
+from agents.shared.rules import (
+    get_application_intake_rules,
+    get_loan_program_requirements
+)
 from agents.shared.prompt_loader import load_agent_prompt
 
 
@@ -32,16 +44,20 @@ def create_application_agent():
     """
     Create ApplicationAgent using LangGraph's prebuilt create_react_agent.
     
-    This creates a specialized agent for mortgage application intake and workflow coordination
-    using LangGraph's production-ready ReAct agent with focused tool integration.
+    This creates a specialized agent for mortgage application intake with:
+    - 7 Operational tools (store data, track status, generate forms, fetch credit via MCP, etc.)
+    - 2 Business rules tools (only what ApplicationAgent needs):
+      * get_application_intake_rules - Required fields for loan programs
+      * get_loan_program_requirements - Basic loan program info
     
-    Features:
-    - Built-in memory and state management
-    - Streaming capabilities for real-time processing
-    - Human-in-the-loop support for complex applications
-    - Proper error handling and validation
-    - Tool isolation for clean application management functionality
-    - Neo4j knowledge graph integration for intelligent decisions
+    MCP Integration:
+    - Agent can call get_credit_score to fetch credit from MCP server when user doesn't provide it
+    - Agent can call verify_identity to verify borrower via MCP server
+    
+    Architecture:
+    - Agent-specific tools: application_agent/tools/ (operational)
+    - Business rules tools: Only the 2 relevant to application scope
+    - No hardcoded business rules in any agent
     
     Returns:
         Compiled LangGraph agent ready for execution
@@ -53,20 +69,27 @@ def create_application_agent():
     # Get centralized LLM from factory
     llm = get_llm()
     
-    # Get all ApplicationAgent-specific tools
-    tools = get_all_application_agent_tools()
+    # Get operational tools (agent-specific)
+    operational_tools = get_all_application_agent_tools()
+    
+    # Get only the business rules tools needed for application intake scope
+    business_rules_tools = [
+        get_application_intake_rules,
+        get_loan_program_requirements
+    ]
+    
+    # Combine both sets of tools (7 operational + 2 business rules = 9 total)
+    all_tools = operational_tools + business_rules_tools
     
     # Load system prompt from YAML using shared prompt loader
-    # Explicitly pass the agent directory to ensure correct path detection
-    agent_dir = Path(__file__).parent  # Current directory (application_agent/)
+    agent_dir = Path(__file__).parent
     system_prompt = load_agent_prompt("application_agent", agent_dir)
     
-    # Create the prebuilt ReAct agent with specialized configuration
+    # Create the prebuilt ReAct agent with combined tools
     agent = create_react_agent(
         model=llm,
-        tools=tools,
-        prompt=system_prompt,
-        name="application_agent"
+        tools=all_tools,
+        prompt=system_prompt
     )
     
     return agent

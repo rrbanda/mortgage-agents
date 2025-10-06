@@ -43,7 +43,7 @@ from .tools import (
     get_all_appraisal_agent_tools,
     validate_all_tools
 )
-from agents.shared.prompt_loader import (
+from ..shared.prompt_loader import (
     load_agent_prompt as load_appraisal_prompt,
     get_agent_prompt_loader,
     validate_agent_prompts

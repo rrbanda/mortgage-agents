@@ -6,5 +6,8 @@
     "mortgage_processing": "./graph.py:app"
   },
   "env": ".env",
-  "python_version": "3.11"
+  "python_version": "3.11",
+  "config": {
+    "recursion_limit": 50
+  }
 }

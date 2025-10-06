@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mortgage-agents
+  namespace: rh12026
+  labels:
+    app: mortgage-agents
+    version: v1.0.0
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mortgage-agents
+  template:
+    metadata:
+      labels:
+        app: mortgage-agents
+        version: v1.0.0
+    spec:
+      containers:
+      - name: mortgage-agents
+        image: quay.io/rbrhssa/mortgage-agents:v1.0.0
+        ports:
+        - containerPort: 8000
+          protocol: TCP
+        env:
+        - name: NEO4J_URI
+          value: "bolt://mortgage-db:7687"
+        - name: NEO4J_PASSWORD
+          value: "mortgage123"
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        - name: OMP_NUM_THREADS
+          value: "1"
+        - name: NUMBA_DISABLE_JIT
+          value: "1"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        imagePullPolicy: Always
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mortgage-agents
+  namespace: rh12026
+  labels:
+    app: mortgage-agents
+spec:
+  selector:
+    app: mortgage-agents
+  ports:
+  - name: http
+    protocol: TCP
+    port: 8000
+    targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: mortgage-agents
+  namespace: rh12026
+  labels:
+    app: mortgage-agents
+spec:
+  to:
+    kind: Service
+    name: mortgage-agents
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None

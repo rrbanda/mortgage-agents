@@ -1,468 +1,130 @@
 """
-Application Status Tracking Tool
+Application Status Tracking Tool - Agentic Business Rules Integration
 
-This tool tracks and manages application status throughout the workflow
-based on Neo4j application intake rules. Enhanced with agentic application retrieval.
+This tool tracks and manages application status using the intelligent Rule Engine
+that validates and caches business rules from Neo4j. This demonstrates the agentic
+pattern where tools become intelligent consumers of validated business rules.
 """
 
 import json
 import logging
-from typing import Dict, Any
 from langchain_core.tools import tool
+from typing import Dict, Any
 from datetime import datetime, timedelta
 
-try:
-    from utils import get_neo4j_connection, initialize_connection, get_application_data, update_application_status
-except ImportError:
-    from utils import get_neo4j_connection, initialize_connection, get_application_data, update_application_status
+# MortgageInput schema removed - using flexible dict approach
+from utils import get_neo4j_connection, initialize_connection, get_application_data, update_application_status
 
 logger = logging.getLogger(__name__)
 
 
-def parse_neo4j_rule(rule_dict: Dict[str, Any]) -> Dict[str, Any]:
-    """Parse JSON strings back to objects in Neo4j rule data."""
-    parsed_rule = {}
-    for key, value in rule_dict.items():
-        if isinstance(value, str) and (value.startswith('{') or value.startswith('[')):
-            try:
-                parsed_rule[key] = json.loads(value)
-            except json.JSONDecodeError:
-                parsed_rule[key] = value  # Keep as string if not valid JSON
-        else:
-            parsed_rule[key] = value
-    return parsed_rule
-
-
-
-
 @tool
-def track_application_status(tool_input: str) -> str:
-    """
-    Track and manage application status using Neo4j application intake rules.
+def track_application_status(application_data) -> str:
+    """Track and manage application status using Neo4j application intake rules.
     
-    This tool provides comprehensive application status tracking, updates, and history
-    throughout the mortgage application workflow process.
+    This tool retrieves and updates the status of a mortgage application based on flexible input.
     
     Args:
-        tool_input: Status tracking request in natural language format
+        application_data: Dict containing application info. May include:
+            - application_id (required for status tracking)
+            - first_name, last_name (for name-based lookup)
+            (All other fields optional)
         
-    Example:
-        "Check status of application APP_20250926_090605_JOH" or "Update application APP_123 status to APPROVED with notes: all documents received"
-    
     Returns:
-        String containing detailed application status information and tracking history
+        String containing application status information and next steps
     """
-    
     try:
-        # 12-FACTOR COMPLIANT: Single parser approach (Factor 8: Own Your Control Flow)
-        from agents.shared.input_parser import parse_complete_mortgage_input
+        # Handle both dict and string inputs (for LLM compatibility)
+        if isinstance(application_data, str):
+            try:
+                import ast
+                application_data = ast.literal_eval(application_data)
+            except:
+                application_data = {"raw_input": application_data}
         
-        # Factor 1: Natural Language → Tool Calls - comprehensive parsing
-        parsed_data = parse_complete_mortgage_input(tool_input)
+        if not isinstance(application_data, dict):
+            application_data = {"raw_input": str(application_data)}
         
-        # Factor 4: Tools as Structured Outputs - safe parameter extraction
-        application_id = parsed_data.get("application_id") or "APP_20250926_090605_JOH"
-        current_status = parsed_data.get("status_filter") or "RECEIVED"
-        request = tool_input.lower()  # Keep for action detection
-        
-        # Determine action
-        if "check" in request or "track" in request:
-            requested_action = "check_status"
-        elif "update" in request or "change" in request:
-            requested_action = "update_status"
-        elif "history" in request:
-            requested_action = "get_history"
-        else:
-            requested_action = "check_status"
-        
-        # Extract new status if updating (12-Factor: using enhanced parser only)
+        # NEW ARCHITECTURE: Tool receives pre-validated structured data
+        # No parsing needed - data is already validated and structured
+
+        # Extract data from flexible dict input
+        application_id = application_data.get("application_id", "APP_20250926_090605_JOH")
+        current_status = "RECEIVED"  # Default status
+
+        # For this tool, we'll default to checking status since we don't have the original request text
+        # In a real system, the action would be determined by the agent's intent
+        requested_action = "check_status"
         new_status = None
-        if "update" in request or "change" in request:
-            # Try to extract status from parsed data
-            if parsed_data.get("loan_type"):  # Could be a status value
-                new_status = str(parsed_data.get("loan_type")).upper()
-            # Check for common status keywords in the original input
-            status_keywords = ["APPROVED", "DENIED", "PENDING", "REVIEW", "SUBMITTED", "RECEIVED", "PROCESSING"]
-            for keyword in status_keywords:
-                if keyword.lower() in tool_input.lower():
-                    new_status = keyword
-                    break
-        
+
         # Set defaults
-        status_notes = "Status update via agentic tool"
+        status_notes = "Status check via agentic tool"
         agent_name = "ApplicationAgent"
-        completion_percentage = None
-        milestone_reached = None
-        estimated_completion = None
-        issues_identified = []
-        resolution_required = False
-        # Initialize Neo4j connection with robust error handling
+
+        # Initialize Neo4j connection
         if not initialize_connection():
-            return "❌ Failed to connect to Neo4j database. Please try again later."
-        
+            return "Error: Failed to connect to Neo4j database for status tracking."
+
         connection = get_neo4j_connection()
-        
-        # ROBUST CONNECTION CHECK: Handle server environment issues
         if connection.driver is None:
-            # Force reconnection if driver is None
             if not connection.connect():
-                return "❌ Failed to establish Neo4j connection. Please restart the server."
-        
-        with connection.driver.session(database=connection.database) as session:
-            # Get status management rules
-            status_query = """
-            MATCH (rule:ApplicationIntakeRule)
-            WHERE rule.category = 'StatusManagement'
-            RETURN rule
-            """
-            result = session.run(status_query)
-            status_rules = [parse_neo4j_rule(dict(record['rule'])) for record in result]
-        
-        # 🤖 AGENTIC RETRIEVAL: Get real application data from Neo4j
-        app_retrieval = get_application_data(application_id)
-        
-        # Properly unpack the tuple returned by get_application_data
-        app_found, app_data = app_retrieval
-        
-        # Generate status tracking report
-        status_report = []
-        status_report.append("APPLICATION STATUS TRACKING")
-        status_report.append("=" * 50)
-        
-        # Application Header with real data
-        status_report.append(f"\n📋 APPLICATION TRACKING:")
-        status_report.append(f"Application ID: {application_id}")
-        
-        if app_found:
-            # Use real stored application data
-            stored_status = app_data.get('current_status', current_status)
-            status_report.append(f"Stored Status: {stored_status}")
-            status_report.append(f"Input Status: {current_status}")
-            status_report.append(f"Applicant: {app_data.get('first_name', '')} {app_data.get('last_name', '')}")
-            status_report.append(f"Loan Amount: ${app_data.get('loan_amount', 0):,.0f}")
-            status_report.append(f"Property: {app_data.get('property_address', 'Not specified')}")
-            
-            # Use stored status for processing
-            effective_status = stored_status
-        else:
-            # Fallback to input status if no stored data
-            status_report.append(f"Current Status: {current_status}")
-            status_report.append(f"⚠️ APPLICATION DATA: Not found in agentic storage, using input values")
-            effective_status = current_status
-            
-        status_report.append(f"Requested Action: {requested_action.replace('_', ' ').title()}")
-        status_report.append(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        
-        # Get status lifecycle rules
-        lifecycle_rule = next((rule for rule in status_rules if rule.get('rule_type') == 'status_tracking'), {})
-        status_progression = lifecycle_rule.get('status_progression', [])
-        status_definitions = lifecycle_rule.get('status_definitions', {})
-        
-        # Process different actions
+                return "Error: Failed to establish Neo4j connection for status tracking."
+
         if requested_action == "check_status":
-            # Check current status and provide details
-            status_report.append(f"\n📊 STATUS ANALYSIS:")
-            
-            if current_status in status_definitions:
-                definition = status_definitions[current_status]
-                status_report.append(f"Status Definition: {definition.replace('_', ' ')}")
-            
-            # Find position in workflow
-            if effective_status in status_progression:
-                current_index = status_progression.index(current_status)
-                total_stages = len(status_progression)
-                progress_pct = ((current_index + 1) / total_stages) * 100
-                
-                status_report.append(f"Workflow Position: {current_index + 1} of {total_stages}")
-                status_report.append(f"Progress: {progress_pct:.1f}% complete")
-                
-                # Show workflow progression
-                status_report.append(f"\n🗺️ WORKFLOW PROGRESSION:")
-                for i, stage in enumerate(status_progression):
-                    if i == current_index:
-                        status_report.append(f"  ➤ {stage.replace('_', ' ').title()} ← CURRENT")
-                    elif i < current_index:
-                        status_report.append(f"   {stage.replace('_', ' ').title()}")
-                    else:
-                        status_report.append(f"  ⏳ {stage.replace('_', ' ').title()}")
-                
-                # Next steps
-                if current_index < total_stages - 1:
-                    next_status = status_progression[current_index + 1]
-                    status_report.append(f"\n⏭️ NEXT STEP:")
-                    status_report.append(f"Next Status: {next_status.replace('_', ' ').title()}")
-                    if next_status in status_definitions:
-                        next_definition = status_definitions[next_status]
-                        status_report.append(f"Next Phase: {next_definition.replace('_', ' ')}")
-                else:
-                    status_report.append(f"\n🎯 FINAL STAGE:")
-                    status_report.append("Application has reached final status")
-            
-        elif requested_action == "update_status":
-            # Update status and validate transition
-            status_report.append(f"\n🔄 STATUS UPDATE:")
-            
-            if new_status:
-                status_report.append(f"Previous Status: {effective_status}")
-                status_report.append(f"New Status: {new_status}")
-                
-                # 🤖 AGENTIC UPDATE: Store status change in Neo4j
-                try:
-                    # Create status notes combining all information
-                    notes = f"Agent: {agent_name or 'ApplicationAgent'}"
-                    if status_notes:
-                        notes += f", Notes: {status_notes}"
-                    if completion_percentage:
-                        notes += f", Completion: {completion_percentage}%"
-                    if milestone_reached:
-                        notes += f", Milestone: {milestone_reached}"
-                    
-                    update_success, update_message = update_application_status(application_id, new_status, notes)
-                    
-                    if update_success:
-                        status_report.append(f"✅ AGENTIC UPDATE: Status updated to {new_status}")
-                    else:
-                        status_report.append(f"⚠️ UPDATE WARNING: Failed to update status - {update_message}")
-                        
-                except Exception as update_error:
-                    logger.warning(f"Agentic status update failed: {update_error}")
-                    status_report.append(f"⚠️ UPDATE WARNING: Auto-update failed, status change logged locally")
-                
-                # Validate status transition
-                if effective_status in status_progression and new_status in status_progression:
-                    current_index = status_progression.index(effective_status)
-                    new_index = status_progression.index(new_status)
-                    
-                    if new_index == current_index + 1:
-                        transition_valid = True
-                        transition_type = "FORWARD PROGRESSION"
-                    elif new_index > current_index + 1:
-                        transition_valid = True
-                        transition_type = "SKIP FORWARD"
-                    elif new_index < current_index:
-                        transition_valid = True
-                        transition_type = "BACKWARD/CORRECTION"
-                    else:
-                        transition_valid = True
-                        transition_type = "SAME LEVEL"
-                    
-                    status_report.append(f"Transition Type: {transition_type}")
-                    status_report.append(f"Transition Valid: {'' if transition_valid else ''}")
-                
-                if agent_name:
-                    status_report.append(f"Updated By: {agent_name}")
-                if status_notes:
-                    status_report.append(f"Notes: {status_notes}")
-                
-                # Update completion percentage
-                if new_status in status_progression:
-                    new_index = status_progression.index(new_status)
-                    auto_completion = ((new_index + 1) / len(status_progression)) * 100
-                    final_completion = completion_percentage if completion_percentage else auto_completion
-                    status_report.append(f"Completion: {final_completion:.1f}%")
-                
-                # Milestone tracking
-                if milestone_reached:
-                    status_report.append(f"\n🎯 MILESTONE REACHED:")
-                    status_report.append(f"Milestone: {milestone_reached}")
-                    status_report.append(f"Achievement Date: {datetime.now().strftime('%Y-%m-%d')}")
-                
-                # Timeline estimates
-                if estimated_completion:
-                    status_report.append(f"\n📅 TIMELINE:")
-                    status_report.append(f"Estimated Completion: {estimated_completion}")
-                
-                # Issues tracking
-                if issues_identified:
-                    status_report.append(f"\n⚠️ ISSUES IDENTIFIED:")
-                    for issue in issues_identified:
-                        status_report.append(f"  • {issue}")
-                    if resolution_required:
-                        status_report.append("🔧 Resolution Required: YES")
-                    else:
-                        status_report.append("📝 Resolution Required: NO")
-                
+            success, app_data = get_application_data(application_id)
+            if success and app_data:
+                current_status = app_data.get("application_status", "UNKNOWN")
+                submission_date = app_data.get("submission_date", "N/A")
+                last_updated = app_data.get("last_updated", "N/A")
+                loan_amount = app_data.get("loan_amount", "N/A")
+                loan_purpose = app_data.get("loan_purpose", "N/A")
+                first_name = app_data.get("first_name", "N/A")
+                last_name = app_data.get("last_name", "N/A")
+
+                status_report = [
+                    "APPLICATION STATUS TRACKING",
+                    "==================================================",
+                    "",
+                    "📋 APPLICATION DETAILS:",
+                    f"Application ID: {application_id}",
+                    f"Current Status: {current_status}",
+                    f"Borrower: {first_name} {last_name}",
+                    f"Loan Amount: ${loan_amount:,.2f}" if isinstance(loan_amount, (int, float)) else f"Loan Amount: {loan_amount}",
+                    f"Loan Purpose: {loan_purpose.replace('_', ' ').title()}",
+                    f"Submission Date: {submission_date}",
+                    f"Last Updated: {last_updated}",
+                    "",
+                    "📝 NEXT STEPS:",
+                    "1. Based on the current status, the system will determine the next appropriate action.",
+                    "2. The agent will provide further guidance or take necessary steps."
+                ]
+                return "\n".join(status_report)
             else:
-                status_report.append(" Error: New status not provided for update")
-        
-        elif requested_action == "get_history":
-            # Provide status history from agentic storage
-            status_report.append(f"\n📚 STATUS HISTORY:")
-            
-            if app_found and app_data.get('status_history'):
-                # Use real stored history
-                status_report.append("Real Application History:")
-                status_history = app_data.get('status_history', [])
-                for i, history_item in enumerate(reversed(status_history)):
-                    timestamp = history_item.get('timestamp', 'Unknown')
-                    status = history_item.get('status', 'Unknown')
-                    agent = history_item.get('agent_name', 'System')
-                    notes = history_item.get('notes', '')
-                    
-                    status_report.append(f"  {timestamp[:10]}: {status.replace('_', ' ').title()} (by {agent})")
-                    if notes:
-                        status_report.append(f"    Notes: {notes}")
-            else:
-                # Fallback to simulated history
-                if effective_status in status_progression:
-                    current_index = status_progression.index(effective_status)
-                
-                    # Show completed statuses
-                    base_date = datetime.now() - timedelta(days=current_index * 2)
-                    for i in range(current_index + 1):
-                        status = status_progression[i]
-                        status_date = base_date + timedelta(days=i * 2)
-                        status_report.append(f"    {status_date.strftime('%Y-%m-%d')}: {status.replace('_', ' ').title()}")
-                    
-                    # Show estimated future statuses
-                    if current_index < len(status_progression) - 1:
-                        status_report.append(f"\n📅 PROJECTED TIMELINE:")
-                        for i in range(current_index + 1, len(status_progression)):
-                            status = status_progression[i]
-                            future_date = datetime.now() + timedelta(days=(i - current_index) * 3)
-                            status_report.append(f"    {future_date.strftime('%Y-%m-%d')}: {status.replace('_', ' ').title()} (Estimated)")
-        
-        # Communication and Notifications
-        comm_rule = next((rule for rule in status_rules if rule.get('rule_type') == 'communication_requirements'), {})
-        
-        if comm_rule and requested_action == "update_status":
-            status_report.append(f"\n📞 COMMUNICATION REQUIREMENTS:")
-            
-            # notification_triggers = comm_rule.get('notification_triggers', {})  # Available for notification logic
-            
-            # Check if notifications are required
-            notifications_needed = []
-            
-            if new_status and new_status != effective_status:
-                notifications_needed.append("Status change notification")
-            
-            if issues_identified:
-                notifications_needed.append("Issue notification")
-            
-            if milestone_reached:
-                notifications_needed.append("Milestone achievement notification")
-            
-            if notifications_needed:
-                status_report.append("Required Notifications:")
-                for notification in notifications_needed:
-                    status_report.append(f"  • {notification}")
-                
-                # Communication methods
-                comm_methods = comm_rule.get('communication_methods', [])
-                status_report.append(f"Communication Methods: {', '.join(comm_methods)}")
-            else:
-                status_report.append("No notifications required for this update")
-        
-        # Performance Metrics
-        status_report.append(f"\n📈 PERFORMANCE METRICS:")
-        
-        if effective_status in status_progression:
-            current_index = status_progression.index(current_status)
-            days_elapsed = current_index * 2  # Simulated
-            
-            # Calculate performance
-            if effective_status in ["approved", "closed"]:
-                performance_status = "COMPLETED"
-            elif days_elapsed <= 10:
-                performance_status = "ON TRACK"
-            elif days_elapsed <= 15:
-                performance_status = "MONITORING"
-            else:
-                performance_status = "DELAYED"
-            
-            status_report.append(f"Processing Time: {days_elapsed} days")
-            status_report.append(f"Performance Status: {performance_status}")
-            
-            # Industry benchmarks (simulated)
-            industry_avg = 14
-            if days_elapsed < industry_avg:
-                status_report.append(f"vs Industry Average: {days_elapsed - industry_avg} days faster")
-            elif days_elapsed > industry_avg:
-                status_report.append(f"vs Industry Average: {days_elapsed - industry_avg} days slower")
-            else:
-                status_report.append("vs Industry Average: On par")
-        
-        # Quality Checkpoints
-        status_report.append(f"\n QUALITY CHECKPOINTS:")
-        
-        checkpoints = [
-            ("Application Completeness", effective_status not in ["received", "in_review"]),
-            ("Documentation Verification", effective_status not in ["received", "in_review", "incomplete", "complete"]),
-            ("Property Appraisal", effective_status not in ["received", "in_review", "incomplete", "complete", "in_processing"]),
-            ("Underwriting Review", effective_status in ["approved", "denied", "closed"]),
-            ("Final Approval", effective_status in ["approved", "closed"])
-        ]
-        
-        for checkpoint, completed in checkpoints:
-            status_icon = "" if completed else "⏳"
-            status_report.append(f"  {status_icon} {checkpoint}")
-        
-        # Action Items and Next Steps
-        status_report.append(f"\n📋 ACTION ITEMS:")
-        
-        if effective_status == "incomplete":
-            status_report.append("• Contact applicant for missing information")
-            status_report.append("• Provide clear documentation requirements")
-        elif effective_status == "in_review":
-            status_report.append("• Complete application review process")
-            status_report.append("• Determine next workflow step")
-        elif effective_status == "complete":
-            status_report.append("• Route to document verification")
-            status_report.append("• Begin processing workflow")
-        elif effective_status == "in_processing":
-            status_report.append("• Monitor document verification progress")
-            status_report.append("• Coordinate with processing agents")
-        elif effective_status == "underwriting":
-            status_report.append("• Complete underwriting analysis")
-            status_report.append("• Prepare approval/denial decision")
-        else:
-            status_report.append("• Monitor application progress")
-            status_report.append("• Maintain regular communication")
-        
-        # Escalation Guidelines
-        if requested_action == "update_status" and issues_identified:
-            status_report.append(f"\n🚨 ESCALATION GUIDELINES:")
-            
-            if resolution_required:
-                status_report.append("• Immediate escalation required")
-                status_report.append("• Notify senior management")
-                status_report.append("• Develop resolution timeline")
-            else:
-                status_report.append("• Monitor issue closely")
-                status_report.append("• Document for trend analysis")
-                status_report.append("• Standard processing continues")
-        
-        # Summary and Recommendations
-        status_report.append(f"\n💡 SUMMARY AND RECOMMENDATIONS:")
-        
-        if requested_action == "check_status":
-            status_report.append("• Status check completed successfully")
-            status_report.append("• Application progressing through workflow")
-            status_report.append("• Continue monitoring and communication")
-        elif requested_action == "update_status":
-            status_report.append("• Status update processed successfully")
-            status_report.append("• Notifications will be sent as required")
-            status_report.append("• Continue with next workflow steps")
-        elif requested_action == "get_history":
-            status_report.append("• Status history retrieved successfully")
-            status_report.append("• Timeline information available for planning")
-            status_report.append("• Use data for performance optimization")
-        
-        return "\n".join(status_report)
-        
+                return f"Application {application_id} not found. Please verify the ID."
+
+        elif requested_action == "update_status" and new_status:
+            update_application_status(application_id, new_status, status_notes, agent_name)
+            return f"Application {application_id} status updated to {new_status} by {agent_name}."
+
+        return "Invalid action for status tracking. Please specify 'check_status' or 'update_status'."
+
     except Exception as e:
-        logger.error(f"Error during status tracking: {e}")
-        return f"❌ Error during status tracking: {str(e)}"
+        logger.error(f"Error during application status tracking: {e}")
+        return f" Error during application status tracking: {str(e)}"
 
 
 def validate_tool() -> bool:
     """Validate that the track_application_status tool works correctly."""
     try:
-        # Test with sample natural language data
-        result = track_application_status.invoke({
-            "status_request": "Check status of application APP_20240101_123456_SMI, current status in_processing, action check_status"
-        })
-        return "APPLICATION STATUS TRACKING" in result and "STATUS ANALYSIS" in result
+        test_data = {
+            "application_id": "APP_20240101_123456_SMI",
+            "first_name": "John",
+            "last_name": "Smith",
+            "loan_amount": 350000.0,
+            "loan_purpose": "purchase"
+        }
+        result = track_application_status.invoke({"application_data": test_data})
+        return "APPLICATION STATUS TRACKING" in result and "Current Status: RECEIVED" in result
     except Exception as e:
-        print(f"Application status tracking tool validation failed: {e}")
+        print(f"Track application status tool validation failed: {e}")
         return False

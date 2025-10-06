@@ -1,0 +1,104 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mortgage-agents
+  namespace: rh12026
+  labels:
+    app: mortgage-agents
+    version: v1.0.0
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mortgage-agents
+  template:
+    metadata:
+      labels:
+        app: mortgage-agents
+        version: v1.0.0
+    spec:
+      containers:
+      - name: mortgage-agents
+        # 🏗️ ARCHITECTURE-SPECIFIC IMAGE SELECTION
+        # Option 1: Multi-arch image (build with --platform linux/amd64,linux/arm64)
+        image: quay.io/rbrhssa/mortgage-agents:v1.0.0-multiarch
+        # Option 2: For ARM64 clusters, uncomment below:
+        # image: quay.io/rbrhssa/mortgage-agents:v1.0.0-arm64  
+        # Option 3: For AMD64/x86_64 clusters, uncomment below:
+        # image: quay.io/rbrhssa/mortgage-agents:v1.0.0-amd64
+        ports:
+        - containerPort: 8000
+          protocol: TCP
+        env:
+        - name: NEO4J_URI
+          value: "bolt://mortgage-db:7687"
+        - name: NEO4J_PASSWORD
+          value: "mortgage123"
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        - name: OMP_NUM_THREADS
+          value: "1"
+        - name: NUMBA_DISABLE_JIT
+          value: "1"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          failureThreshold: 3
+        imagePullPolicy: Always
+      restartPolicy: Always
+      # 🎯 OPTIONAL: Force specific architecture nodes
+      # nodeSelector:
+      #   kubernetes.io/arch: amd64  # or arm64
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mortgage-agents
+  namespace: rh12026
+  labels:
+    app: mortgage-agents
+spec:
+  selector:
+    app: mortgage-agents
+  ports:
+  - name: http
+    protocol: TCP
+    port: 8000
+    targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: mortgage-agents
+  namespace: rh12026
+  labels:
+    app: mortgage-agents
+spec:
+  to:
+    kind: Service
+    name: mortgage-agents
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None

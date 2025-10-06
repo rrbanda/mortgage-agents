@@ -7,7 +7,6 @@ and personalized recommendations to help users navigate the mortgage process.
 The MortgageAdvisorAgent specializes in:
 - Mortgage education and loan program comparison
 - Personalized loan selection guidance based on borrower profile
-- Next-step recommendations throughout the application process
 - Qualification requirements and credit guidance
 - Neo4j knowledge graph integration for intelligent recommendations
 
@@ -18,11 +17,16 @@ Structure:
 - tests/: Comprehensive test suite for mortgage guidance functionality
 - ../shared/: Reusable utilities shared across all agents (prompt loader, etc.)
 
-Tools (All 4 implemented - 100% data-driven from Neo4j):
+Tools (3 operational + 3 business rules = 6 total):
+Operational:
 - explain_loan_programs: Compare and explain different mortgage loan programs
 - recommend_loan_program: Provide personalized loan recommendations  
 - check_qualification_requirements: Analyze qualification requirements and identify gaps
-- guide_next_steps: Provide step-by-step process guidance and preparation tips
+
+Business Rules (from shared/rules):
+- get_loan_program_requirements
+- get_qualification_criteria
+- get_underwriting_rules
 
 Benefits:
 - Focused mortgage expertise with deep domain knowledge
@@ -36,11 +40,10 @@ from .tools import (
     explain_loan_programs,
     recommend_loan_program, 
     check_qualification_requirements,
-    guide_next_steps,
     get_all_mortgage_advisor_tools,
     validate_all_tools
 )
-from agents.shared.prompt_loader import (
+from ..shared.prompt_loader import (
     load_agent_prompt as load_mortgage_advisor_prompt,
     get_agent_prompt_loader,
     validate_agent_prompts
@@ -50,11 +53,10 @@ __all__ = [
     # Main agent
     "create_mortgage_advisor_agent",
     
-    # All 4 implemented tools - 100% data-driven from Neo4j
+    # 3 operational tools (NO hardcoded business rules)
     "explain_loan_programs",
     "recommend_loan_program", 
     "check_qualification_requirements",
-    "guide_next_steps",
     
     # Tool management
     "get_all_mortgage_advisor_tools",

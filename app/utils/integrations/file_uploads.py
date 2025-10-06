@@ -155,7 +155,7 @@ def _extract_text_from_image_bytes(image_bytes: bytes) -> str:
                             cleaned_lines.append(line.strip())
                     result_text = '\n'.join(cleaned_lines)
                     
-                    print(f"✅ OCR successful: extracted and cleaned {len(result_text)} characters")
+                    print(f" OCR successful: extracted and cleaned {len(result_text)} characters")
                     return result_text
                 else:
                     return "[Image Document - OCR completed but no text detected in image]"

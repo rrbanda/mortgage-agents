@@ -46,7 +46,7 @@ def get_stored_application_data(tool_input: str) -> str:
         application_id = tool_input.strip()
         
         if not application_id:
-            return "❌ Error: Application ID is required"
+            return " Error: Application ID is required"
             
         # Initialize database connection
         initialize_connection()
@@ -54,14 +54,14 @@ def get_stored_application_data(tool_input: str) -> str:
         # Get application data from storage
         success, app_data = get_application_data(application_id.strip())
         if not success:
-            return f"❌ Error retrieving application {application_id}: {app_data}"
+            return f" Error retrieving application {application_id}: {app_data}"
         
         if not app_data:
-            return f"❌ Application {application_id} not found in storage"
+            return f" Application {application_id} not found in storage"
             
         # Format the application data nicely
         result = f"""
-✅ **STORED APPLICATION DATA**
+ **STORED APPLICATION DATA**
 
 **Application ID:** {app_data.get('application_id', application_id)}
 **Status:** {app_data.get('current_status', 'Unknown')}
@@ -114,7 +114,7 @@ def get_stored_application_data(tool_input: str) -> str:
         
     except Exception as e:
         logger.error(f"Error retrieving application data: {e}")
-        return f"❌ Error retrieving application {application_id}: {str(e)}"
+        return f" Error retrieving application {application_id}: {str(e)}"
 
 
 @tool  
@@ -138,14 +138,9 @@ def list_stored_applications(tool_input: str = "") -> str:
         initialize_connection()
         
         # Get applications from storage
-        if status_filter:
-            success, applications = list_applications()
-            if not success:
-                return f"❌ Error retrieving applications: {applications}"
-        else:
-            success, applications = list_applications()
-            if not success:
-                return f"❌ Error retrieving applications: {applications}"
+        success, applications = list_applications()
+        if not success:
+            return f" Error retrieving applications: {applications}"
             
         if not applications:
             filter_msg = f" with status '{status_filter}'" if status_filter else ""
@@ -174,7 +169,7 @@ def list_stored_applications(tool_input: str = "") -> str:
         
     except Exception as e:
         logger.error(f"Error listing applications: {e}")
-        return f"❌ Error listing applications: {str(e)}"
+        return f" Error listing applications: {str(e)}"
 
 
 @tool
@@ -195,7 +190,7 @@ def find_application_by_name(tool_input: str) -> str:
         applicant_name = tool_input.strip()
         
         if not applicant_name:
-            return "❌ Error: Applicant name is required"
+            return " Error: Applicant name is required"
             
         # Initialize database connection
         initialize_connection()
@@ -205,7 +200,7 @@ def find_application_by_name(tool_input: str) -> str:
         # Get all applications and search by name
         success, all_apps = list_applications()
         if not success:
-            return f"❌ Error retrieving applications: {all_apps}"
+            return f" Error retrieving applications: {all_apps}"
         matching_apps = []
         
         for app in all_apps:
@@ -219,9 +214,9 @@ def find_application_by_name(tool_input: str) -> str:
                 matching_apps.append(app)
                 
         if not matching_apps:
-            return f"❌ No applications found for '{applicant_name}'"
+            return f" No applications found for '{applicant_name}'"
             
-        result = [f"✅ **APPLICATIONS FOR '{applicant_name.upper()}'**\n"]
+        result = [f" **APPLICATIONS FOR '{applicant_name.upper()}'**\n"]
         
         for i, app in enumerate(matching_apps, 1):
             app_id = app.get('application_id', 'Unknown')
@@ -238,7 +233,7 @@ def find_application_by_name(tool_input: str) -> str:
         
     except Exception as e:
         logger.error(f"Error finding applications by name: {e}")
-        return f"❌ Error searching for applications: {str(e)}"
+        return f" Error searching for applications: {str(e)}"
 
 
 def validate_application_data_tools() -> bool:

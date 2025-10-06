@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "mortgage-business-rules": {
+      "command": "npx",
+      "args": [
+        "-y", 
+        "mcp-remote@latest", 
+        "https://mcp-mortgage-business-rules-route-rh12026.apps.prod.rhoai.rh-aiservices-bu.com/mcp/"
+      ],
+      "env": {
+        "NODE_TLS_REJECT_UNAUTHORIZED": "0"
+      }
+    }
+  }
+}

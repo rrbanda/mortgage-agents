@@ -2,6 +2,7 @@
 
 # Core LangGraph & LangChain
 langgraph>=0.2.0
+flask>=3.1.0
 langgraph-cli[inmem]>=0.1.0
 langchain>=0.3.0
 langchain-core>=0.3.0
@@ -24,4 +25,9 @@ langsmith>=0.1.0
 # Utilities
 python-dotenv>=1.0.0
 typing-extensions>=4.0.0
+
+# MCP Integration
+langchain-mcp-adapters>=0.1.0
+mcp>=1.0.0
+httpx>=0.25.0  # For HTTP MCP client
 

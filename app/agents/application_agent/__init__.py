@@ -39,6 +39,7 @@ from .tools import (
     check_application_completeness,
     perform_initial_qualification,
     track_application_status,
+    generate_urla_1003_form,
     get_all_application_agent_tools,
     validate_all_tools
 )
@@ -57,6 +58,7 @@ __all__ = [
     "check_application_completeness",
     "perform_initial_qualification",
     "track_application_status",
+    "generate_urla_1003_form",
     
     # Tool management
     "get_all_application_agent_tools",

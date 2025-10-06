@@ -1,0 +1,78 @@
+# MCPServer Custom Resource for Credit Check API
+# Based on ToolHive deployment pattern for OpenShift
+# Reference: https://developers.redhat.com/articles/2025/10/01/how-deploy-mcp-servers-openshift-using-toolhive
+
+apiVersion: toolhive.stacklok.dev/v1alpha1
+kind: MCPServer
+metadata:
+  name: credit-check
+  namespace: rh12026
+  labels:
+    app: mortgage-agents
+    component: credit-check
+    version: v1.0.0
+  annotations:
+    description: "Mock Credit Bureau API for mortgage processing MCP integration"
+spec:
+  # Container image (HTTP-based MCP server with correct port 8000 from environment)
+  image: quay.io/rbrhssa/mcp-credit:v3.13-mcp-server
+  
+  # Transport protocol - using sse for agentic MCP client compatibility
+  transport: sse
+  
+  # Port configuration
+  port: 8080
+  targetPort: 8000  # FastMCP SSE runs on 8000 by default
+  
+  # Security and permissions
+  permissionProfile:
+    type: builtin
+    name: network
+  
+  # Resource limits for OpenShift
+  resources:
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+  
+  # Environment variables for container
+  env:
+    - name: FLASK_DEBUG
+      value: "false"
+    # Don't set PORT here - let start-mcp-server.sh handle it
+    # MCP server runs on 8080, Flask API on 8081 (set in startup script)
+  
+  # Health checks
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8080
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8080
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+  
+  # Replica configuration
+  replicas: 1
+  
+  # OpenShift-specific configurations
+  securityContext:
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault

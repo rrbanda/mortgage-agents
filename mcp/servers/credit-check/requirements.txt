@@ -1,0 +1,11 @@
+# Requirements for Credit Check MCP Server
+# Based on actual imports from the Python files
+
+# Flask API (mock_credit_api.py)
+flask>=3.0.0
+
+# HTTP client (mcp_fastmcp_server.py)  
+requests>=2.31.0
+
+# FastMCP server framework
+fastmcp>=0.2.0
