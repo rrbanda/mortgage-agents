@@ -341,3 +341,7 @@ mortgage_applications.db*
 htmlcov/
 test-results/
 test_*.json
+
+# Embedded git repositories (external projects)
+mcp/gen-mcp/
+mcp/toolhive/
