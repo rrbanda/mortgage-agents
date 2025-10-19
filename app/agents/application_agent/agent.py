@@ -75,7 +75,7 @@ def create_application_agent():
     
     # OFFICIAL LANGGRAPH MCP PATTERN: Dynamically load MCP tools at initialization
     # Agent will receive these tools and decide when to call them based on prompts
-    credit_mcp_tools = get_mcp_credit_tools()        # Credit check via ToolHive
+    credit_mcp_tools = get_mcp_credit_tools()        # Credit check via MCP
     neo4j_mcp_tools = get_neo4j_mcp_tools()          # Business rules via Neo4j direct
     
     if credit_mcp_tools:

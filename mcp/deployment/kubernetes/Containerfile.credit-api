@@ -1,5 +1,5 @@
-# Containerfile for Mock Credit Bureau API
-# Optimized for OpenShift deployment with ToolHive
+# Containerfile for Credit Check MCP Server
+# Simple HTTP MCP server for OpenShift deployment
 
 FROM python:3.11-slim
 
@@ -15,20 +15,26 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the mock credit API
+# Copy all MCP server files
 COPY mock_credit_api.py .
+COPY mcp_server.py .
+COPY start-mcp-server.sh .
+
+# Make start script executable
+RUN chmod +x start-mcp-server.sh
 
 # Create non-root user for OpenShift security
 RUN groupadd -r creditapi && useradd -r -g creditapi creditapi
 RUN chown -R creditapi:creditapi /app
 USER creditapi
 
-# Expose port 8080 (standard for ToolHive MCP servers)
-EXPOSE 8080
+# Expose port 8000 (MCP server HTTP transport)
+# Flask API runs internally on 8081
+EXPOSE 8000
 
-# Health check
+# Health check (checks Flask API on 8081)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8080/health')" || exit 1
+    CMD python -c "import requests; requests.get('http://localhost:8081/health', timeout=5)" || exit 1
 
-# Run the application
-CMD ["python", "mock_credit_api.py"]
+# Run the startup script (starts both Flask API and MCP server)
+CMD ["./start-mcp-server.sh"]

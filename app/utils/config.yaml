@@ -51,11 +51,11 @@ neo4j:
 mcp:
   # Credit check MCP server configuration
   credit_check:
-    # OpenShift deployed MCP server (production) - HTTPS with TLS edge termination
-    # FastMCP SSE endpoint requires /sse path
-    url: "https://mcp-credit-check-proxy-rh12026.apps.cluster-k2ds9.k2ds9.sandbox2151.opentlc.com/sse"
+    # OpenShift deployed MCP server (streamable-http transport)
+    # FastMCP streamable-http endpoint at /mcp
+    url: "https://credit-check-mcp-rh12026.apps.prod.rhoai.rh-aiservices-bu.com/mcp"
     # Local development fallback
-    local_url: "http://localhost:8081/sse"
+    local_url: "http://localhost:8000/mcp"
     timeout_seconds: 30
     retry_attempts: 3
     enabled: true

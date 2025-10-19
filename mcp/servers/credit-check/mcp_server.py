@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Proper MCP Server using FastMCP for agentic tool discovery
-Compatible with langchain-mcp-adapters SSE transport
+Credit Check MCP Server using FastMCP
+Direct streamable-http transport (same as Neo4j MCP)
 """
 
 import os
@@ -117,24 +117,19 @@ CREDIT REPORT SUMMARY:
         return f"Credit report failed: {str(e)}"
 
 if __name__ == "__main__":
-    import os
-    import asyncio
     import uvicorn
     
-    logger.info("🏦 Starting FastMCP Credit Check Server...")
-    logger.info(" MCP Server starting (binding to 0.0.0.0 for ToolHive)")
+    logger.info("🏦 Starting Credit Check MCP Server (streamable-http)...")
     
-    # Get port from environment
-    port = int(os.environ.get('MCP_PORT', 8000))
+    # Get host and port from environment
+    host = os.getenv('FASTMCP_HOST', '0.0.0.0')
+    port = int(os.getenv('MCP_PORT', '8000'))
     
-    # Use uvicorn.Config and Server directly for full control over host binding
-    config = uvicorn.Config(
-        app=mcp.sse_app(),
-        host="0.0.0.0",  # Bind to all interfaces for ToolHive
-        port=port,
-        log_level="info"
-    )
-    server = uvicorn.Server(config)
+    logger.info(f"📡 Binding to {host}:{port}")
     
-    # Run the server
-    asyncio.run(server.serve())
+    # Get the ASGI app from FastMCP for streamable-http
+    # This gives us control over host/port binding
+    app = mcp.streamable_http_app()
+    
+    # Run with uvicorn for full control
+    uvicorn.run(app, host=host, port=port, log_level="info")

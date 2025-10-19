@@ -25,8 +25,8 @@ from .document_agent import create_document_agent
 from .appraisal_agent import create_appraisal_agent
 from .underwriting_agent import create_underwriting_agent
 
-# Import LLM
-from utils import get_llm, extract_message_content_and_files
+# Import LLM and file processing
+from utils import get_llm, extract_message_content_and_files, clean_file_entries_from_messages
 
 
 class MortgageRoutingState(TypedDict):
@@ -287,6 +287,11 @@ def create_agent_node(agent_name: str, agent):
                 pass
         
         # Default execution for other agents
+        # Clean file entries from messages for non-document agents
+        # DocumentAgent handles files specially above, other agents need text-only
+        if agent_name != "document_agent":
+            messages = clean_file_entries_from_messages(messages)
+        
         result = await agent.ainvoke({"messages": messages})
         
         return {

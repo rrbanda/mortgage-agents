@@ -44,7 +44,8 @@ try:
         parse_multimodal_content,
         extract_text_from_data_url,
         create_document_processing_input,
-        get_uploaded_files_summary
+        get_uploaded_files_summary,
+        clean_file_entries_from_messages
     )
     _integrations_available = True
 except ImportError:
@@ -55,6 +56,7 @@ except ImportError:
     extract_text_from_data_url = None
     create_document_processing_input = None
     get_uploaded_files_summary = None
+    clean_file_entries_from_messages = None
 
 __all__ = [
     # LLM utilities
@@ -83,5 +85,6 @@ __all__ = [
     "parse_multimodal_content",
     "extract_text_from_data_url", 
     "create_document_processing_input",
-    "get_uploaded_files_summary"
+    "get_uploaded_files_summary",
+    "clean_file_entries_from_messages"
 ]

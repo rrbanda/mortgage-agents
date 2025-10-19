@@ -12,19 +12,17 @@ FLASK_PID=$!
 echo "⏳ Waiting for Flask API to be ready..."
 sleep 5
 
-# Verify Flask is running
-curl -f http://localhost:8081/health || {
+# Verify Flask is running using Python (curl not available in slim image)
+python -c "import requests; requests.get('http://localhost:8081/health', timeout=5).raise_for_status()" || {
     echo " Flask API failed to start"
     exit 1
 }
 
 echo " Flask API is ready"
 
-# Start FastMCP server with SSE transport (port from environment)
-echo "🔗 Starting FastMCP Credit Server on port ${MCP_PORT:-8000}..."
-# Don't override MCP_PORT - use the value from Kubernetes/ToolHive environment
-export UVICORN_HOST=0.0.0.0  # Force Uvicorn to bind to all interfaces for ToolHive
-exec python mcp_fastmcp_server.py
+# Start MCP server with HTTP transport (port from environment)
+echo "🔗 Starting MCP Credit Server on port ${MCP_PORT:-8000}..."
+exec python mcp_server.py
 
 # This should never be reached, but just in case
 wait $FLASK_PID

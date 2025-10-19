@@ -18,7 +18,8 @@ from .file_uploads import (
     
     # Helper utilities
     create_document_processing_input,
-    get_uploaded_files_summary
+    get_uploaded_files_summary,
+    clean_file_entries_from_messages
 )
 
 __all__ = [
@@ -26,5 +27,6 @@ __all__ = [
     "parse_multimodal_content", 
     "extract_text_from_data_url",
     "create_document_processing_input",
-    "get_uploaded_files_summary"
+    "get_uploaded_files_summary",
+    "clean_file_entries_from_messages"
 ]

@@ -382,3 +382,47 @@ def get_uploaded_files_summary(parsed_content: Dict) -> str:
         summaries.append(f"📄 {file_info['filename']} ({file_info['type']}) - {text_preview}...")
     
     return f"Received {len(parsed_content['files'])} uploaded document(s):\n" + '\n'.join(summaries)
+
+
+def clean_file_entries_from_messages(messages: List) -> List:
+    """
+    Clean file entries from message history after processing.
+    Replaces 'type: file' entries with extracted text to make messages compatible with LLMs.
+    
+    Args:
+        messages: List of messages with potential file entries
+        
+    Returns:
+        Cleaned messages with file entries replaced by text
+    """
+    from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+    
+    cleaned_messages = []
+    
+    for msg in messages:
+        # Only process HumanMessages with list content (multimodal)
+        if hasattr(msg, 'type') and msg.type == 'human' and isinstance(msg.content, list):
+            # Extract text and file content
+            parsed = parse_multimodal_content(msg.content)
+            
+            if parsed['has_uploads']:
+                # Replace with text-only version including file contents
+                cleaned_content = parsed['text']
+                cleaned_content += "\n\n📋 **UPLOADED DOCUMENTS:**\n"
+                for i, file_info in enumerate(parsed['files'], 1):
+                    cleaned_content += f"\n**Document {i}: {file_info['filename']}**\n"
+                    cleaned_content += f"Type: {file_info['type']}\n"
+                    cleaned_content += f"Content:\n{file_info['extracted_text']}\n"
+                    cleaned_content += "---\n"
+                
+                # Create new message with text-only content
+                cleaned_messages.append(HumanMessage(content=cleaned_content))
+            else:
+                # No files, keep as text
+                text_content = ''.join([item.get('text', '') for item in msg.content if isinstance(item, dict) and item.get('type') == 'text'])
+                cleaned_messages.append(HumanMessage(content=text_content if text_content else str(msg.content)))
+        else:
+            # Keep other message types as-is
+            cleaned_messages.append(msg)
+    
+    return cleaned_messages

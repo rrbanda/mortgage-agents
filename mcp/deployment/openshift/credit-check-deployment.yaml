@@ -1,0 +1,89 @@
+---
+# Simple OpenShift Deployment for Credit Check MCP Server
+# No ToolHive needed - just standard Kubernetes resources
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: credit-check-mcp
+  namespace: rh12026
+  labels:
+    app: credit-check-mcp
+spec:
+  selector:
+    app: credit-check-mcp
+  ports:
+    - name: mcp
+      port: 8000
+      targetPort: 8000
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: credit-check-mcp
+  namespace: rh12026
+  labels:
+    app: credit-check-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: credit-check-mcp
+  template:
+    metadata:
+      labels:
+        app: credit-check-mcp
+    spec:
+      containers:
+        - name: credit-check-mcp
+          image: quay.io/rbrhssa/mcp-credit:v3.13-mcp-server-v4
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+              name: mcp
+              protocol: TCP
+          env:
+            - name: MCP_PORT
+              value: "8000"
+            - name: FASTMCP_HOST
+              value: "0.0.0.0"
+            - name: CREDIT_API_URL
+              value: "http://localhost:8081"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8081
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "200m"
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: credit-check-mcp
+  namespace: rh12026
+  labels:
+    app: credit-check-mcp
+spec:
+  to:
+    kind: Service
+    name: credit-check-mcp
+  port:
+    targetPort: mcp
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+

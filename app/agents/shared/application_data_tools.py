@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 @tool
-def get_stored_application_data(tool_input: str) -> str:
+def get_stored_application_data(application_id: str) -> str:
     """
     Retrieve stored application data by application ID.
     
@@ -28,14 +28,14 @@ def get_stored_application_data(tool_input: str) -> str:
     without needing to re-ask the customer for basic details.
     
     Args:
-        tool_input: The application ID (e.g., "APP_20250926_090605_JOH")
+        application_id: The application ID (e.g., "APP_20250926_090605_JOH")
         
     Returns:
         String containing the application data or error message
     """
     try:
-        # Parse application_id from tool_input
-        application_id = tool_input.strip()
+        # Parse application_id
+        application_id = application_id.strip()
         
         if not application_id:
             return " Error: Application ID is required"
@@ -110,21 +110,21 @@ def get_stored_application_data(tool_input: str) -> str:
 
 
 @tool  
-def list_stored_applications(tool_input: str = "") -> str:
+def list_stored_applications(status_filter: str = "") -> str:
     """
     List all stored applications, optionally filtered by status.
     
     This tool helps agents see all applications in the system and their current status.
     
     Args:
-        tool_input: Optional status to filter by (e.g., "RECEIVED", "PROCESSING") or empty for all
+        status_filter: Optional status to filter by (e.g., "RECEIVED", "PROCESSING") or empty for all
         
     Returns:
         String listing all applications matching the criteria
     """
     try:
-        # Parse status filter from tool_input
-        status_filter = tool_input.strip() if tool_input else ""
+        # Parse status filter
+        status_filter = status_filter.strip() if status_filter else ""
         
         # Initialize database connection
         initialize_connection()
@@ -165,21 +165,21 @@ def list_stored_applications(tool_input: str = "") -> str:
 
 
 @tool
-def find_application_by_name(tool_input: str) -> str:
+def find_application_by_name(applicant_name: str) -> str:
     """
     Find applications by applicant name.
     
     This tool helps agents find existing applications when they only have the customer's name.
     
     Args:
-        tool_input: Full or partial name of the applicant
+        applicant_name: Full or partial name of the applicant
         
     Returns:
         String with matching applications or "not found" message
     """
     try:
-        # Parse applicant name from tool_input
-        applicant_name = tool_input.strip()
+        # Parse applicant name
+        applicant_name = applicant_name.strip()
         
         if not applicant_name:
             return " Error: Applicant name is required"

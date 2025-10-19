@@ -92,13 +92,13 @@ def create_underwriting_agent():
     
     # OFFICIAL LANGGRAPH MCP PATTERN: Dynamically load MCP tools at initialization
     # Agent will receive these tools and decide when to call them based on prompts
-    credit_mcp_tools = get_mcp_credit_tools()        # Credit check via ToolHive
+    credit_mcp_tools = get_mcp_credit_tools()        # Credit check via MCP
     neo4j_mcp_tools = get_neo4j_mcp_tools()          # Business rules via Neo4j direct
     
     if credit_mcp_tools:
-        logger.info(f"✓ Loaded {len(credit_mcp_tools)} credit MCP tools from ToolHive: {[t.name for t in credit_mcp_tools]}")
+        logger.info(f"✓ Loaded {len(credit_mcp_tools)} credit MCP tools: {[t.name for t in credit_mcp_tools]}")
     else:
-        logger.warning("⚠️  No credit MCP tools loaded - ToolHive may be unavailable")
+        logger.warning("⚠️  No credit MCP tools loaded - MCP server may be unavailable")
     
     if neo4j_mcp_tools:
         logger.info(f"✓ Loaded {len(neo4j_mcp_tools)} Neo4j MCP tools: {[t.name for t in neo4j_mcp_tools]}")

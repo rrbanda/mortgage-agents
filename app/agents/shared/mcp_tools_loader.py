@@ -1,6 +1,6 @@
 """
 MCP Tools Loader - Official LangGraph Pattern
-Loads MCP tools from ToolHive for agent discovery
+Loads MCP tools from Credit Check MCP server for agent discovery
 
 This module provides a clean interface for agents to load MCP tools
 using the official langchain-mcp-adapters pattern.
@@ -21,7 +21,7 @@ _mcp_tools_cache: Optional[List[BaseTool]] = None
 
 def get_mcp_credit_tools() -> List[BaseTool]:
     """
-    Get MCP credit check tools from ToolHive server.
+    Get MCP credit check tools from Credit Check MCP server.
     
     This uses the official LangGraph MCP pattern where:
     - Agent discovers tools dynamically from MCP server
@@ -40,7 +40,7 @@ def get_mcp_credit_tools() -> List[BaseTool]:
     
     try:
         # Load tools from MCP server
-        logger.info("Loading MCP tools from ToolHive...")
+        logger.info("Loading MCP tools from Credit Check MCP server...")
         
         # Handle both sync and async contexts
         try:
@@ -92,7 +92,7 @@ async def _load_mcp_tools() -> List[BaseTool]:
 
 
 async def _initialize_mcp_client() -> Optional[MultiServerMCPClient]:
-    """Initialize MCP client connected to ToolHive"""
+    """Initialize MCP client connected to Credit Check MCP server"""
     try:
         # Import config here to avoid circular imports
         import sys
@@ -113,13 +113,14 @@ async def _initialize_mcp_client() -> Optional[MultiServerMCPClient]:
         
         mcp_url = config.get_mcp_credit_check_url()
         
-        logger.info(f"Initializing MCP client for ToolHive: {mcp_url}")
+        logger.info(f"Initializing Credit Check MCP client (streamable-http): {mcp_url}")
         
-        # Configure client for ToolHive
+        # Configure client for streamable-http MCP server
+        # URL should end with /mcp (FastMCP endpoint)
         client_config = {
             "credit_check": {
-                "url": mcp_url,  # ToolHive proxy URL
-                "transport": "sse",  # Server-Sent Events
+                "url": mcp_url,
+                "transport": "streamable_http",
             }
         }
         

@@ -17,11 +17,11 @@ app = Flask(__name__)
 
 # Mock database of credit profiles for testing
 MOCK_CREDIT_PROFILES = {
-    "123-45-6789": {
-        "ssn": "123-45-6789",
+    "987-65-4321": {
+        "ssn": "987-65-4321",
         "first_name": "Sarah", 
         "last_name": "Johnson",
-        "date_of_birth": "1985-06-15",
+        "date_of_birth": "1990-05-20",
         "credit_score": 742,
         "credit_scores": {
             "experian": 745,
@@ -49,8 +49,8 @@ MOCK_CREDIT_PROFILES = {
         "identity_verified": True,
         "fraud_alerts": []
     },
-    "987-65-4321": {
-        "ssn": "987-65-4321",
+    "123-45-6789": {
+        "ssn": "123-45-6789",
         "first_name": "Michael",
         "last_name": "Chen", 
         "date_of_birth": "1978-03-22",
@@ -149,6 +149,30 @@ def get_credit_score():
     except Exception as e:
         return jsonify({"error": f"Credit score lookup failed: {str(e)}"}), 500
 
+def normalize_date(date_str):
+    """
+    Normalize date to YYYY-MM-DD format
+    Accepts: YYYY-MM-DD, MM/DD/YYYY, or M/D/YYYY
+    """
+    from datetime import datetime
+    
+    # Try ISO format first (YYYY-MM-DD)
+    try:
+        dt = datetime.strptime(date_str, '%Y-%m-%d')
+        return dt.strftime('%Y-%m-%d')
+    except ValueError:
+        pass
+    
+    # Try US format (MM/DD/YYYY or M/D/YYYY)
+    try:
+        dt = datetime.strptime(date_str, '%m/%d/%Y')
+        return dt.strftime('%Y-%m-%d')
+    except ValueError:
+        pass
+    
+    # Return as-is if can't parse
+    return date_str
+
 @app.route('/verify-identity', methods=['POST'])  
 def verify_identity():
     """
@@ -176,7 +200,8 @@ def verify_identity():
             
             name_match = (data['first_name'].lower() == profile['first_name'].lower() and 
                          data['last_name'].lower() == profile['last_name'].lower())
-            dob_match = data['date_of_birth'] == profile['date_of_birth']
+            # Normalize both dates for comparison
+            dob_match = normalize_date(data['date_of_birth']) == normalize_date(profile['date_of_birth'])
             
             confidence_score = 0
             if name_match: confidence_score += 60
