@@ -10,19 +10,11 @@ import logging
 from langchain_core.tools import tool
 
 # Import from the utils module (which properly exposes database functions)
-try:
-    from utils import (
-        get_application_data,
-        list_applications,
-        initialize_connection
-    )
-except ImportError:
-    # Fallback import path
-    from utils.database import (
-        get_application_data,
-        list_applications,
-        initialize_connection
-    )
+from utils import (
+    get_application_data,
+    list_applications,
+    initialize_connection
+)
 
 logger = logging.getLogger(__name__)
 
@@ -234,6 +226,23 @@ def find_application_by_name(tool_input: str) -> str:
     except Exception as e:
         logger.error(f"Error finding applications by name: {e}")
         return f" Error searching for applications: {str(e)}"
+
+
+def get_shared_application_tools():
+    """
+    Get all shared application data tools.
+    
+    These tools provide a consistent interface for all agents to access 
+    stored application data from Neo4j.
+    
+    Returns:
+        List of 3 shared application data tools
+    """
+    return [
+        get_stored_application_data,
+        list_stored_applications,
+        find_application_by_name
+    ]
 
 
 def validate_application_data_tools() -> bool:

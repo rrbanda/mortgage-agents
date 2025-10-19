@@ -209,37 +209,37 @@ def generate_urla_1003_form(application_data) -> str:
 def validate_tool() -> bool:
     """Validate that the generate_urla_1003_form tool works correctly."""
     try:
-        # Test with structured MortgageInput data
-        test_data = MortgageInput(
-            application_id="APP_20240101_123456_SMI",
-            first_name="John",
-            last_name="Smith",
-            ssn="123-45-6789",
-            date_of_birth="1985-01-15",
-            phone="555-123-4567",
-            email="john.smith@email.com",
-            current_street="123 Main St",
-            current_city="Anytown",
-            current_state="CA",
-            current_zip="90210",
-            years_at_address=3.5,
-            employer_name="Tech Corp",
-            job_title="Software Engineer",
-            years_employed=4.0,
-            monthly_income=8000.0,
-            employment_type="w2",
-            loan_amount=400000.0,
-            loan_purpose="purchase",
-            property_address="456 Oak Ave, Anytown, CA 90210",
-            property_type="single_family_detached",
-            occupancy_type="primary_residence",
-            property_value=500000.0,
-            down_payment=100000.0,
-            liquid_assets=75000.0,
-            monthly_debts=1200.0
-        )
+        # Test with dict data (MortgageInput schema removed)
+        test_data = {
+            "application_id": "APP_20240101_123456_SMI",
+            "first_name": "John",
+            "last_name": "Smith",
+            "ssn": "123-45-6789",
+            "date_of_birth": "1985-01-15",
+            "phone": "555-123-4567",
+            "email": "john.smith@email.com",
+            "current_street": "123 Main St",
+            "current_city": "Anytown",
+            "current_state": "CA",
+            "current_zip": "90210",
+            "years_at_address": 3.5,
+            "employer_name": "Tech Corp",
+            "job_title": "Software Engineer",
+            "years_employed": 4.0,
+            "monthly_income": 8000.0,
+            "employment_type": "w2",
+            "loan_amount": 400000.0,
+            "loan_purpose": "purchase",
+            "property_address": "456 Oak Ave, Anytown, CA 90210",
+            "property_type": "single_family_detached",
+            "occupancy_type": "primary_residence",
+            "property_value": 500000.0,
+            "down_payment": 100000.0,
+            "liquid_assets": 75000.0,
+            "monthly_debts": 1200.0
+        }
 
-        result = generate_urla_1003_form.invoke({"parsed_data": test_data})
+        result = generate_urla_1003_form.invoke({"application_data": test_data})
         return "URLA FORM 1003 GENERATION REPORT" in result and "URLA_" in result
     except Exception as e:
         print(f"URLA generation tool validation failed: {e}")

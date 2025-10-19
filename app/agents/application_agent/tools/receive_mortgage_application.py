@@ -22,9 +22,6 @@ from utils import (
 
 logger = logging.getLogger(__name__)
 
-# MCP Integration (Mock for now)
-MCP_CREDIT_AVAILABLE = False # Assume MCP credit check is not available for now
-
 
 def normalize_for_api(data: dict) -> dict:
     """
@@ -166,32 +163,6 @@ def receive_mortgage_application(application_data) -> str:
         if missing:
             return f"I still need: {', '.join(missing)}. Could you provide those?\n\n APPLICATION INTAKE COMPLETE - AWAITING ADDITIONAL INFORMATION"
 
-        # MCP Credit Check Integration - Get credit score if not provided
-        if credit_score == 0 and MCP_CREDIT_AVAILABLE:
-            try:
-                # Prepare borrower name and address for MCP tools
-                # borrower_name = f"{first_name} {last_name}"
-                # borrower_address = f"{current_street}, {current_city}, {current_state} {current_zip}"
-
-                # Verify identity first
-                # identity_result = verify_identity.invoke({"name": borrower_name, "address": borrower_address, "ssn": ssn})
-                # if "verified" not in identity_result.lower():
-                #     return f"Identity verification failed for {borrower_name}. Please confirm details."
-
-                # Get credit report
-                # credit_report = get_credit_report.invoke({"name": borrower_name, "address": borrower_address, "ssn": ssn})
-                # if "error" in credit_report.lower():
-                #     return f"Failed to retrieve credit report: {credit_report}"
-
-                # Extract credit score (mock for now)
-                credit_score = 720 # Mock credit score from MCP
-                logger.info(f"MCP Credit Check: Successfully retrieved mock credit score {credit_score}")
-
-            except Exception as mcp_error:
-                logger.warning(f"MCP Credit Check failed: {mcp_error}")
-                # Continue without credit score if MCP fails
-                pass
-
         # Calculate LTV and DTI (simplified for this tool)
         ltv = (loan_amount / property_value) * 100 if property_value > 0 else 0
         dti = ((monthly_debts + (loan_amount * 0.005)) / monthly_income) * 100 if monthly_income > 0 else 0 # Mock P&I
@@ -219,7 +190,7 @@ def receive_mortgage_application(application_data) -> str:
         application_data = MortgageApplicationData(
             application_id=application_id,
             received_date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            current_status="RECEIVED",
+            current_status="SUBMITTED",
             first_name=first_name,
             last_name=last_name,
             middle_name=middle_name,
@@ -268,18 +239,25 @@ def receive_mortgage_application(application_data) -> str:
             f"Credit Score: {credit_score}",
             f"Estimated LTV: {ltv:.2f}%",
             f"Estimated DTI: {dti:.2f}%",
-            f"Application Status: RECEIVED",
+            f"Application Status: SUBMITTED",
             "",
             "📝 NEXT STEPS:",
-            "1. Application has been successfully received and saved.",
-            "2. Await further instructions from the MortgageAdvisorAgent or ApplicationAgent for next steps.",
-            "3. You may be asked to provide additional documents or information.",
-            "4. The system will now route the application for initial qualification and completeness checks."
+            "1. ✅ Application SUBMITTED successfully",
+            "",
+            "🎯 READY FOR DOCUMENT COLLECTION:",
+            '   To continue, you can say:',
+            '   • "What documents do I need?"',
+            '   • "Show me the document requirements"',
+            '   • "Start document collection"',
+            "",
+            "📍 FULL WORKFLOW:",
+            "   Current: SUBMITTED ✅",
+            "   Next: DOCUMENT_COLLECTION → CREDIT_REVIEW → APPRAISAL_ORDERED → UNDERWRITING"
         ]
 
-        # Add a warning if MCP credit check was not performed
-        if credit_score == 0 and not MCP_CREDIT_AVAILABLE:
-            intake_report.append("\n⚠️ WARNING: Credit score could not be retrieved (MCP not available or failed). Initial qualification may be limited.")
+        # Add a warning if credit score was not provided
+        if credit_score == 0:
+            intake_report.append("\n⚠️ NOTE: Credit score not provided. Agent may call credit check MCP tools if needed for qualification.")
 
         # Add completion signal to prevent ReAct agent from calling again
         intake_report.append("\n APPLICATION INTAKE COMPLETE - NO FURTHER ACTION NEEDED")

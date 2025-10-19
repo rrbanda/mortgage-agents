@@ -8,7 +8,6 @@ pattern where tools become intelligent consumers of validated business rules.
 
 import logging
 from langchain_core.tools import tool
-from typing import Dict, Any, List, Optional
 
 # MortgageInput schema removed - using flexible dict approach
 
@@ -22,7 +21,7 @@ def check_qualification_requirements(application_data: dict) -> str:
     This tool uses structured borrower data to assess eligibility against program rules.
     
     Args:
-        parsed_data: Pre-validated MortgageInput object with structured borrower data
+        application_data: Dictionary with structured borrower data
         
     Returns:
         String containing detailed qualification requirements analysis
@@ -56,31 +55,31 @@ def check_qualification_requirements(application_data: dict) -> str:
         data_completeness = []
         
         if credit_score > 0:
-            data_completeness.append(" Credit Score: Provided")
+            data_completeness.append("✓ Credit Score: Provided")
         else:
             data_completeness.append("❌ Credit Score: Missing")
             
         if annual_income > 0:
-            data_completeness.append(" Income: Provided")
+            data_completeness.append("✓ Income: Provided")
         else:
             data_completeness.append("❌ Income: Missing")
             
         if property_value > 0:
-            data_completeness.append(" Property Value: Provided")
+            data_completeness.append("✓ Property Value: Provided")
         else:
             data_completeness.append("❌ Property Value: Missing")
             
         if down_payment > 0:
-            data_completeness.append(" Down Payment: Provided")
+            data_completeness.append("✓ Down Payment: Provided")
         else:
             data_completeness.append("❌ Down Payment: Missing")
             
         if monthly_debts >= 0:
-            data_completeness.append(" Monthly Debts: Provided")
+            data_completeness.append("✓ Monthly Debts: Provided")
         else:
             data_completeness.append("❌ Monthly Debts: Missing")
         
-        complete_count = sum(1 for item in data_completeness if item.startswith(""))
+        complete_count = sum(1 for item in data_completeness if item.startswith("✓"))
         total_count = len(data_completeness)
 
         # Generate data quality and metrics report (NO qualification decisions)
@@ -145,7 +144,7 @@ def validate_tool() -> bool:
             "first_time_buyer": True
         }
         result = check_qualification_requirements.invoke({"application_data": test_data})
-        return "QUALIFICATION REQUIREMENTS ANALYSIS" in result and "FHA Loan Program" in result
+        return "APPLICATION DATA REVIEW & METRICS" in result and "FHA" in result
     except Exception as e:
         print(f"Check qualification requirements tool validation failed: {e}")
         return False

@@ -73,14 +73,56 @@ def track_application_status(application_data) -> str:
         if requested_action == "check_status":
             success, app_data = get_application_data(application_id)
             if success and app_data:
-                current_status = app_data.get("application_status", "UNKNOWN")
-                submission_date = app_data.get("submission_date", "N/A")
-                last_updated = app_data.get("last_updated", "N/A")
-                loan_amount = app_data.get("loan_amount", "N/A")
+                current_status = app_data.get("current_status", "UNKNOWN")  # Fixed: was "application_status"
+                submission_date = app_data.get("received_date", "N/A")  # Fixed: was "submission_date"
+                last_updated = app_data.get("received_date", "N/A")  # Use received_date as last_updated for now
+                loan_amount = app_data.get("requested_amount", "N/A")  # Fixed: was "loan_amount", stored as "requested_amount"
                 loan_purpose = app_data.get("loan_purpose", "N/A")
                 first_name = app_data.get("first_name", "N/A")
                 last_name = app_data.get("last_name", "N/A")
 
+                # Dynamic next steps based on current status
+                next_steps = []
+                if current_status == "SUBMITTED":
+                    next_steps = [
+                        "📝 NEXT STEPS:",
+                        "🎯 Ready for DOCUMENT_COLLECTION:",
+                        '   You can say:',
+                        '   • "What documents do I need?"',
+                        '   • "Show me the document requirements"',
+                        '   • "Start document collection"'
+                    ]
+                elif current_status == "DOCUMENT_COLLECTION":
+                    next_steps = [
+                        "📝 NEXT STEPS:",
+                        "🎯 Ready for CREDIT_REVIEW:",
+                        '   You can say:',
+                        '   • "Check my credit score"',
+                        '   • "Verify my identity"',
+                        '   • "Run credit check"'
+                    ]
+                elif current_status == "CREDIT_REVIEW":
+                    next_steps = [
+                        "📝 NEXT STEPS:",
+                        "🎯 Ready for APPRAISAL_ORDERED:",
+                        '   You can say:',
+                        '   • "Order property appraisal"',
+                        '   • "Start appraisal process"'
+                    ]
+                elif current_status == "APPRAISAL_ORDERED":
+                    next_steps = [
+                        "📝 NEXT STEPS:",
+                        "🎯 Ready for UNDERWRITING:",
+                        '   You can say:',
+                        '   • "Start underwriting review"',
+                        '   • "Analyze my application for approval"'
+                    ]
+                else:
+                    next_steps = [
+                        "📝 NEXT STEPS:",
+                        "   Based on the current status, ask me what you'd like to do next!"
+                    ]
+                
                 status_report = [
                     "APPLICATION STATUS TRACKING",
                     "==================================================",
@@ -94,10 +136,7 @@ def track_application_status(application_data) -> str:
                     f"Submission Date: {submission_date}",
                     f"Last Updated: {last_updated}",
                     "",
-                    "📝 NEXT STEPS:",
-                    "1. Based on the current status, the system will determine the next appropriate action.",
-                    "2. The agent will provide further guidance or take necessary steps."
-                ]
+                ] + next_steps
                 return "\n".join(status_report)
             else:
                 return f"Application {application_id} not found. Please verify the ID."

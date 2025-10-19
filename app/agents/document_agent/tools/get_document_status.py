@@ -35,23 +35,14 @@ def get_document_status(application_data: dict) -> str:
         last_name = application_data.get('last_name', '')
         borrower_name = f"{first_name} {last_name}".strip() if first_name or last_name else "Unknown Borrower"
 
-        # Get document status from BusinessRulesAgent (in a real system, this would query document status)
-        # For now, we'll use mock data since document status tracking would be handled by a separate service
-        try:
-                        
-            # Call BusinessRulesAgent tool to get document requirements (for context)
-            document_requirements_result = get_document_requirements.invoke({
-                "loan_type": "purchase",
-                "property_type": "single_family",
-                "document_category": "all"
-            })
-            
-            # Parse the JSON result from BusinessRulesAgent
-            document_requirements = json.loads(document_requirements_result)
-            
-        except Exception as e:
-            logger.warning(f"Failed to get document requirements from BusinessRulesAgent: {e}")
-            document_requirements = {"required_documents": []}
+        # Mock document requirements for status comparison
+        # In production, this would come from a document tracking service
+        document_requirements = {
+            "required_documents": [
+                "pay_stub", "w2", "bank_statement", "tax_return", 
+                "employment_verification", "appraisal", "home_insurance"
+            ]
+        }
 
         # Create mock document statuses for demonstration (in real system, this would come from document service)
         document_statuses = [

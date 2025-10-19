@@ -23,6 +23,7 @@ from .process_uploaded_document import process_uploaded_document
 from .get_document_status import get_document_status
 from .verify_document_completeness import verify_document_completeness
 from .validate_urla_form import validate_urla_form
+from .list_standard_documents import list_standard_documents
 
 
 def get_all_document_agent_tools():
@@ -33,16 +34,17 @@ def get_all_document_agent_tools():
     - Process and extract document data
     - Check upload status
     - Validate document structure
-    - NO business rules about document requirements
+    - List standard documents (helpful checklist, NOT business rules)
     
-    Returns 5 operational tools (business rules tools added separately in agent.py)
+    Returns 6 operational tools (business rules tools added separately in agent.py)
     """
     return [
         process_uploaded_document,
         extract_document_data,
         get_document_status,
         verify_document_completeness,
-        validate_urla_form
+        validate_urla_form,
+        list_standard_documents
     ]
 
 
@@ -52,5 +54,6 @@ __all__ = [
     "get_document_status",
     "verify_document_completeness",
     "validate_urla_form",
+    "list_standard_documents",
     "get_all_document_agent_tools"
 ]

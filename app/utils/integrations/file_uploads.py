@@ -208,8 +208,8 @@ def parse_multimodal_content(message_content) -> Dict[str, any]:
                 if isinstance(item, dict):
                     if item.get('type') == 'text':
                         result['text'] += item.get('text', '')
-                    elif item.get('type') == 'image':
-                        # LangGraph Studio image format detected
+                    elif item.get('type') == 'file' or item.get('type') == 'image':
+                        # LangGraph Studio file/image upload detected
                         result['has_uploads'] = True
                         
                         # Extract raw base64 data (no data URL prefix)
@@ -217,19 +217,26 @@ def parse_multimodal_content(message_content) -> Dict[str, any]:
                         
                         if raw_data:
                             # Convert to proper data URL format for processing
-                            # Try to determine image type from base64 header
-                            if raw_data.startswith('iVBOR'):
+                            # Try to determine file type from base64 magic bytes
+                            
+                            # Check for PDF first (PDFs start with %PDF = JVBERi in base64)
+                            if raw_data.startswith('JVBERi'):
+                                data_url = f"data:application/pdf;base64,{raw_data}"
+                                print(f"🔍 Processing PDF document: {len(raw_data)} bytes")
+                            elif raw_data.startswith('iVBOR'):
                                 data_url = f"data:image/png;base64,{raw_data}"
+                                print(f"🔍 OCR processing PNG image: {len(raw_data)} bytes")
                             elif raw_data.startswith('/9j/'):
-                                data_url = f"data:image/jpeg;base64,{raw_data}"  
+                                data_url = f"data:image/jpeg;base64,{raw_data}"
+                                print(f"🔍 OCR processing JPEG image: {len(raw_data)} bytes")
                             elif raw_data.startswith('AAAA'):
                                 # Could be HEIC/AVIF or other format - default to JPEG
                                 data_url = f"data:image/jpeg;base64,{raw_data}"
+                                print(f"🔍 OCR processing image: {len(raw_data)} bytes")
                             else:
                                 # Default to JPEG for unknown formats
                                 data_url = f"data:image/jpeg;base64,{raw_data}"
-                            
-                            print(f"🔍 OCR processing image: {len(raw_data)} bytes")
+                                print(f"🔍 OCR processing unknown format: {len(raw_data)} bytes")
                             
                             # Process the uploaded file
                             extracted_text, file_type, filename = extract_text_from_data_url(data_url)

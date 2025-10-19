@@ -7,7 +7,7 @@ with 5 specialized agents, intelligent router workflow, and 200+ Neo4j-powered b
 ## Quick Start - End-to-End Processing
 
 ```python
-from app.agents import create_mortgage_workflow
+from agents import create_mortgage_workflow
 
 # Create router workflow for intelligent agent routing
 workflow = create_mortgage_workflow()
@@ -20,7 +20,7 @@ response = workflow.invoke({
 ## Quick Start - Individual Agents
 
 ```python
-from app.agents import (
+from agents import (
     create_application_agent,
     create_mortgage_advisor_agent,
     create_document_agent,
@@ -57,7 +57,7 @@ response = agent.invoke({"messages": [("user", "I want to apply for a mortgage")
 Ensure Neo4j is running locally with database "mortgage":
 
 ```python
-from app.utils import initialize_connection
+from utils import initialize_connection
 # Note: mortgage_data_loader was removed during utils restructuring
 
 initialize_connection()

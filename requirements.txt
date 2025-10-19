@@ -31,3 +31,10 @@ langchain-mcp-adapters>=0.1.0
 mcp>=1.0.0
 httpx>=0.25.0  # For HTTP MCP client
 
+# Document Processing (OCR & PDF)
+PyPDF2>=3.0.0
+pdfplumber>=0.10.0
+pytesseract>=0.3.10
+Pillow>=10.0.0
+reportlab>=4.0.0  # For PDF generation
+

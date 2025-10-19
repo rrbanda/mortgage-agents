@@ -162,20 +162,22 @@ class Neo4jConnection:
 
     def execute_query(self, query: str, parameters: Optional[Dict] = None) -> Any:
         """
-        Execute a Cypher query.
+        Execute a Cypher query and return consumed records.
         
         Args:
             query: Cypher query string
             parameters: Optional query parameters
             
         Returns:
-            Query result
+            List of records (already consumed to avoid session closure issues)
         """
         if not self._driver:
             raise RuntimeError("Not connected to Neo4j database. Call connect() first.")
         
         with self._driver.session(database=self.config["database"]) as session:
-            return session.run(query, parameters or {})
+            result = session.run(query, parameters or {})
+            # Consume result BEFORE session closes to avoid "result consumed" errors
+            return list(result)
     
     def execute_write_transaction(self, transaction_function, *args, **kwargs):
         """
@@ -429,13 +431,12 @@ def update_application_status(application_id: str, new_status: str, notes: str =
         RETURN app.application_id as updated_id, app.current_status as status
         """
         
-        result = connection.execute_query(query, {
+        # execute_query now returns a list of records (already consumed)
+        records = connection.execute_query(query, {
             "app_id": application_id,
             "new_status": new_status,
             "notes": notes
         })
-        # Convert result to avoid consumption errors
-        records = list(result)
         
         if records:
             record = records[0]  # Get first record
@@ -480,11 +481,9 @@ def list_applications(limit: int = 10) -> Tuple[bool, Any]:
         LIMIT $limit
         """
         
-        result = connection.execute_query(query, {"limit": limit})
+        # execute_query now returns a list of records (already consumed)
+        records = connection.execute_query(query, {"limit": limit})
         applications = []
-        
-        # Convert result to list immediately to avoid consumption errors
-        records = list(result)
         
         for record in records:
             applications.append({

@@ -22,14 +22,16 @@ The agent focuses on:
 - Agent calls business rules tool to know what documents are required
 """
 
-from typing import Dict
 from langgraph.prebuilt import create_react_agent
 
 from utils import get_llm
-from utils.config import AppConfig
 from .tools import get_all_document_agent_tools
-from ..shared.rules import get_document_requirements
 from ..shared.prompt_loader import load_agent_prompt
+from ..shared.mcp_tools_loader import get_mcp_credit_tools
+from ..shared.neo4j_mcp_loader import get_neo4j_mcp_tools
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def create_document_agent():
@@ -56,22 +58,27 @@ def create_document_agent():
         Compiled LangGraph agent ready for execution
     """
     
-    # Load configuration
-    config = AppConfig.load()
-    
     # Get centralized LLM from factory
     llm = get_llm()
     
-    # Get operational tools (agent-specific, no business rules)
+    # Get operational tools (agent-specific)
     operational_tools = get_all_document_agent_tools()
+    logger.info(f"Loaded {len(operational_tools)} document operational tools")
     
-    # Get only the business rules tool needed for document scope
-    business_rules_tools = [
-        get_document_requirements
-    ]
+    # Get MCP tools
+    credit_mcp_tools = get_mcp_credit_tools()
+    neo4j_mcp_tools = get_neo4j_mcp_tools()
     
-    # Combine both sets of tools (5 operational + 1 business rules = 6 total)
-    tools = operational_tools + business_rules_tools
+    if credit_mcp_tools:
+        logger.info(f"✓ Loaded {len(credit_mcp_tools)} credit MCP tools")
+    if neo4j_mcp_tools:
+        logger.info(f"✓ Loaded {len(neo4j_mcp_tools)} Neo4j MCP tools")
+    
+    # Combine all tools - PRIORITIZE Neo4j MCP tools by putting them FIRST
+    # Tool order matters: LLMs tend to favor tools listed earlier
+    # Order: Neo4j MCP (business rules) → Operational → Credit MCP
+    tools = neo4j_mcp_tools + operational_tools + credit_mcp_tools
+    logger.info(f"Total tools available: {len(tools)} (Neo4j MCP prioritized first)")
     
     # Load system prompt from YAML using shared prompt loader
     # Explicitly pass the agent directory to ensure correct path detection

@@ -8,7 +8,6 @@ pattern where tools become intelligent consumers of validated business rules.
 
 import logging
 from langchain_core.tools import tool
-from typing import Dict, Any, List, Optional
 
 # MortgageInput schema removed - using flexible dict approach
 
@@ -22,7 +21,7 @@ def recommend_loan_program(application_data: dict) -> str:
     This tool uses structured borrower data to suggest suitable loan programs.
     
     Args:
-        parsed_data: Pre-validated MortgageInput object with structured borrower data
+        application_data: Dictionary with structured borrower data
         
     Returns:
         String containing loan program recommendations with explanations
@@ -135,7 +134,7 @@ def validate_tool() -> bool:
             "property_type": "single_family_detached"
         }
         result = recommend_loan_program.invoke({"application_data": test_data})
-        return "LOAN PROGRAM RECOMMENDATIONS" in result and "Recommended Programs" in result
+        return "BORROWER PROFILE & LOAN PROGRAM GUIDANCE" in result and "LOAN PROGRAMS TO CONSIDER" in result
     except Exception as e:
         print(f"Recommend loan program tool validation failed: {e}")
         return False

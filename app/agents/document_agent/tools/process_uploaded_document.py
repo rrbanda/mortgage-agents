@@ -14,6 +14,54 @@ logger = logging.getLogger(__name__)
 from utils import update_application_status
 
 
+def _detect_document_type(content: str) -> str:
+    """
+    Auto-detect document type from content.
+    
+    Args:
+        content: Document text content
+        
+    Returns:
+        Detected document type (pay_stub, w2, bank_statement, etc.)
+    """
+    content_lower = content.lower()
+    
+    # Check for pay stub indicators
+    if any(indicator in content_lower for indicator in [
+        "payroll statement", "pay period", "pay date", "gross pay", "net pay", 
+        "pay stub", "paystub", "earnings statement"
+    ]):
+        return "pay_stub"
+    
+    # Check for W-2 indicators
+    if any(indicator in content_lower for indicator in [
+        "w-2", "w2", "wage and tax statement", "form w-2", "irs form w-2"
+    ]):
+        return "w2"
+    
+    # Check for bank statement indicators
+    if any(indicator in content_lower for indicator in [
+        "bank statement", "account balance", "beginning balance", "ending balance",
+        "account summary", "transaction history"
+    ]):
+        return "bank_statement"
+    
+    # Check for employment verification
+    if any(indicator in content_lower for indicator in [
+        "employment verification", "verification of employment", "voe"
+    ]):
+        return "employment_verification"
+    
+    # Check for tax returns
+    if any(indicator in content_lower for indicator in [
+        "form 1040", "u.s. individual income tax return", "1040"
+    ]):
+        return "tax_return"
+    
+    # Default to unknown
+    return "unknown"
+
+
 @tool
 def process_uploaded_document(application_data: dict) -> str:
     """Process an uploaded mortgage document, extract data, validate it, and update its status.
@@ -33,9 +81,20 @@ def process_uploaded_document(application_data: dict) -> str:
         # Extract relevant data from application_data for context
         application_id = application_data.get('application_id', "UNKNOWN_APP")
         context = application_data.get('context', {})
-        document_type = context.get("document_type", "unknown") if context else "unknown"
-        document_id = context.get("document_id", f"DOC_{application_id}_{document_type}_1") if context else f"DOC_{application_id}_{document_type}_1"
+        
+        # Get document content - agent should provide this
         document_content = context.get("document_content", "No content provided.") if context else "No content provided."
+        
+        # AUTO-DETECT document type from content if not explicitly provided
+        provided_doc_type = context.get("document_type", "") if context else ""
+        if provided_doc_type:
+            document_type = provided_doc_type
+        else:
+            # Auto-detect from content
+            document_type = _detect_document_type(document_content)
+        
+        # Generate document ID
+        document_id = context.get("document_id", f"DOC_{application_id}_{document_type}_1") if context else f"DOC_{application_id}_{document_type}_1"
 
         # ARCHITECTURE: This tool provides basic document processing
         # For detailed business rules and specific document requirements, 
@@ -56,45 +115,43 @@ def process_uploaded_document(application_data: dict) -> str:
             validation_results.append(" Document content length acceptable")
 
         # Document type specific processing
+        # NOTE: LLM extracts the data, tool just formats it for display
         if document_type == "pay_stub":
-            # Mock pay stub processing
+            # LLM should have extracted these fields already
             extracted_data = {
-                "employer_name": application_data.get('employer_name', "Extracted Employer"),
-                "employee_name": f"{application_data.get('first_name', 'Unknown')} {application_data.get('last_name', 'Employee')}",
-                "pay_period": "Monthly",
-                "gross_pay": application_data.get('monthly_income', 5000.0),
-                "net_pay": (application_data.get('monthly_income', 5000.0) * 0.75),  # Mock calculation
-                "year_to_date": (application_data.get('monthly_income', 5000.0) * 6)  # Mock YTD
+                "employer_name": application_data.get('employer_name', "Not extracted"),
+                "employee_name": f"{application_data.get('first_name', 'Unknown')} {application_data.get('last_name', 'Unknown')}",
+                "pay_period": "Monthly",  # Standard assumption
+                "gross_pay": application_data.get('monthly_income', 0),
+                "net_pay": application_data.get('net_pay', 0) if application_data.get('net_pay') else (application_data.get('monthly_income', 0) * 0.75),
+                "year_to_date": application_data.get('annual_income', 0)
             }
             validation_results.append(" Pay stub format validated")
-            validation_results.append(" Employer information extracted")
-            validation_results.append(" Income information extracted")
+            validation_results.append(" Employer information extracted" if application_data.get('employer_name') else "⚠️ Employer not extracted")
+            validation_results.append(" Income information extracted" if application_data.get('monthly_income') else "⚠️ Income not extracted")
 
         elif document_type == "bank_statement":
-            # Mock bank statement processing
+            # LLM should have extracted these fields already
             extracted_data = {
-                "account_holder": f"{application_data.get('first_name', 'Unknown')} {application_data.get('last_name', 'User')}",
-                "account_type": "Checking",
-                "current_balance": application_data.get('liquid_assets', 25000.0),
-                "average_balance": (application_data.get('liquid_assets', 25000.0) * 0.9),
-                "transaction_count": 45  # Mock count
+                "account_holder": f"{application_data.get('first_name', 'Unknown')} {application_data.get('last_name', 'Unknown')}",
+                "account_type": application_data.get('account_type', "Checking"),
+                "current_balance": application_data.get('liquid_assets', 0) or application_data.get('account_balance', 0),
+                "bank_name": application_data.get('bank_name', "Not extracted")
             }
             validation_results.append(" Bank statement format validated")
-            validation_results.append(" Account information extracted")
-            validation_results.append(" Balance information extracted")
+            validation_results.append(" Account information extracted" if application_data.get('account_balance') or application_data.get('liquid_assets') else "⚠️ Balance not extracted")
 
         elif document_type == "w2":
-            # Mock W-2 processing
+            # LLM should have extracted these fields already
             extracted_data = {
-                "employee_name": f"{application_data.get('first_name', 'Unknown')} {application_data.get('last_name', 'Employee')}",
-                "employer_name": application_data.get('employer_name', "Extracted Employer"),
-                "wages": application_data.get('annual_income', 60000.0),
-                "tax_year": "2023",
-                "ssn": application_data.get('ssn', "***-**-****")
+                "employee_name": f"{application_data.get('first_name', 'Unknown')} {application_data.get('last_name', 'Unknown')}",
+                "employer_name": application_data.get('employer_name', "Not extracted"),
+                "wages": application_data.get('annual_income', 0),
+                "tax_year": application_data.get('tax_year', "Unknown")
             }
             validation_results.append(" W-2 format validated")
-            validation_results.append(" Employer information extracted")
-            validation_results.append(" Income information extracted")
+            validation_results.append(" Employer information extracted" if application_data.get('employer_name') else "⚠️ Employer not extracted")
+            validation_results.append(" Income information extracted" if application_data.get('annual_income') else "⚠️ Income not extracted")
 
         else:
             validation_results.append(f"⚠️ Unknown document type: {document_type}")
@@ -117,59 +174,47 @@ def process_uploaded_document(application_data: dict) -> str:
             processing_results.append(f"⚠️ Status update failed: {str(e)}")
 
         # Generate processing report
-        report = [
-            "DOCUMENT PROCESSING REPORT",
-            "==================================================",
-            "",
-            "📋 PROCESSING DETAILS:",
-            f"Document ID: {document_id}",
-            f"Application ID: {application_id}",
-            f"Document Type: {document_type}",
-            f"Processing Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            f"Processing Agent: DocumentAgent",
-            f"Architecture: Basic document processing (for detailed business rules, ask business rules questions)",
-            "",
-            "📊 EXTRACTED DATA:"
-        ]
-
-        for key, value in extracted_data.items():
-            report.append(f"• {key.replace('_', ' ').title()}: {value}")
-
-        report.extend([
-            "",
-            " VALIDATION RESULTS:"
-        ])
-        report.extend(validation_results)
-
-        report.extend([
-            "",
-            "🔍 QUALITY CHECKS:"
-        ])
-        report.extend(quality_checks)
-
-        report.extend([
-            "",
-            "📝 PROCESSING RESULTS:"
-        ])
-        report.extend(processing_results)
-
-        # Add next steps
-        report.extend([
-            "",
-            "📋 NEXT STEPS:",
-            "1. Review extracted data for accuracy",
-            "2. Compare with application information",
-            "3. Flag any discrepancies for review",
-            "4. Update application with validated data",
-            "5. Request additional documents if needed",
-            "",
-            "⚠️ IMPORTANT NOTES:",
-            "• All extracted data should be verified by a human reviewer",
-            "• Discrepancies between documents and application should be investigated",
-            "• Additional documents may be requested based on findings"
-        ])
-
-        return "\n".join(report)
+        # Generate simple, user-friendly summary
+        doc_type_labels = {
+            "pay_stub": "Pay Stub",
+            "w2": "W-2",
+            "bank_statement": "Bank Statement",
+            "tax_return": "Tax Return",
+            "employment_verification": "Employment Verification",
+            "appraisal": "Appraisal Report",
+            "home_insurance": "Home Insurance",
+            "unknown": "Document"
+        }
+        
+        doc_label = doc_type_labels.get(document_type, "Document")
+        
+        # Build simple summary of key extracted data
+        summary_parts = [f"✓ {doc_label} processed"]
+        
+        # Add most relevant extracted data (with correct key names and type conversion)
+        if document_type == "pay_stub" and "gross_pay" in extracted_data:
+            try:
+                gross_pay = float(extracted_data['gross_pay']) if extracted_data['gross_pay'] else 0.0
+                summary_parts.append(f"Monthly income: ${gross_pay:,.2f}")
+            except (ValueError, TypeError):
+                pass
+        elif document_type == "w2" and "wages" in extracted_data:
+            try:
+                wages = float(extracted_data['wages']) if extracted_data['wages'] else 0.0
+                summary_parts.append(f"Annual wages: ${wages:,.2f}")
+            except (ValueError, TypeError):
+                pass
+        elif document_type == "bank_statement" and "current_balance" in extracted_data:
+            try:
+                balance = float(extracted_data['current_balance']) if extracted_data['current_balance'] else 0.0
+                summary_parts.append(f"Account balance: ${balance:,.2f}")
+            except (ValueError, TypeError):
+                pass
+        
+        if "employer_name" in extracted_data and extracted_data['employer_name'] != "Not extracted":
+            summary_parts.append(f"Employer: {extracted_data['employer_name']}")
+        
+        return " - ".join(summary_parts)
 
     except Exception as e:
         logger.error(f"Error during document processing: {e}")
@@ -186,7 +231,7 @@ def validate_tool() -> bool:
             "context": {"document_type": "pay_stub", "document_id": "DOC_PAY_1", "document_content": "John Doe, Monthly Income: $5000"}
         }
         result = process_uploaded_document.invoke({"application_data": test_data})
-        return "DOCUMENT PROCESSING REPORT" in result and "Document ID: DOC_PAY_1" in result
+        return "processed" in result.lower()
     except Exception as e:
         print(f"Process uploaded document tool validation failed: {e}")
         return False

@@ -8,7 +8,7 @@ The MortgageAdvisorAgent specializes in:
 - Mortgage education and loan program comparison
 - Personalized loan selection guidance based on borrower profile
 - Qualification requirements and credit guidance
-- Neo4j knowledge graph integration for intelligent recommendations
+- Dynamic MCP integration for business rules (Neo4j) and credit checks (ToolHive)
 
 Structure:
 - agent.py: Main agent creation and configuration
@@ -17,20 +17,27 @@ Structure:
 - tests/: Comprehensive test suite for mortgage guidance functionality
 - ../shared/: Reusable utilities shared across all agents (prompt loader, etc.)
 
-Tools (3 operational + 3 business rules = 6 total):
-Operational:
+Tools (3 operational + N MCP tools dynamically loaded at runtime):
+
+Operational Tools (3):
 - explain_loan_programs: Compare and explain different mortgage loan programs
 - recommend_loan_program: Provide personalized loan recommendations  
 - check_qualification_requirements: Analyze qualification requirements and identify gaps
 
-Business Rules (from shared/rules):
-- get_loan_program_requirements
-- get_qualification_criteria
-- get_underwriting_rules
+MCP Tools (dynamically loaded at agent initialization):
+- N Credit Check MCP tools: Loaded from ToolHive via get_mcp_credit_tools()
+- M Neo4j MCP tools: Loaded from Neo4j MCP server via get_neo4j_mcp_tools()
+  (includes business rules queries like loan requirements, qualification criteria, underwriting rules)
+
+Official LangGraph MCP Pattern:
+- Tools are discovered dynamically from MCP servers
+- Agent receives all available tools and decides when to call them
+- No hardcoded MCP wrapper tools
 
 Benefits:
 - Focused mortgage expertise with deep domain knowledge
-- Intelligent recommendations using Neo4j knowledge graph
+- Dynamic business rules via Neo4j MCP integration
+- Real-time credit checks via ToolHive MCP integration
 - Clear separation from data collection and processing concerns
 - Professional mortgage advisor experience for users
 """

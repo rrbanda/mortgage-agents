@@ -205,7 +205,7 @@ def route_to_agent(state: MortgageRoutingState) -> Literal["mortgage_advisor_age
 def create_agent_node(agent_name: str, agent):
     """Create agent execution node"""
     
-    def agent_execution(state: MortgageRoutingState):
+    async def agent_execution(state: MortgageRoutingState):
         """Execute agent with enhanced message content for document processing"""
         
         messages = state["messages"]
@@ -220,6 +220,18 @@ def create_agent_node(agent_name: str, agent):
                 if user_messages:
                     last_user_msg = user_messages[-1]
                     
+                    # DEBUG: Log raw message structure
+                    print(f"\n🔍 RAW MESSAGE DEBUG:")
+                    print(f"Message type: {type(last_user_msg)}")
+                    print(f"Message content type: {type(last_user_msg.content)}")
+                    if isinstance(last_user_msg.content, list):
+                        print(f"Content is list with {len(last_user_msg.content)} items")
+                        for i, item in enumerate(last_user_msg.content[:3]):  # First 3 items
+                            print(f"  Item {i}: {type(item)} - {str(item)[:100]}")
+                    else:
+                        print(f"Content (first 200 chars): {str(last_user_msg.content)[:200]}")
+                    print(f"{'='*60}\n")
+                    
                     # Extract full content including files
                     parsed_content = extract_message_content_and_files(last_user_msg)
                     
@@ -228,15 +240,43 @@ def create_agent_node(agent_name: str, agent):
                         print(f"🔍 DocumentAgent processing {parsed_content.get('file_count', 0)} uploaded files")
                     
                     # Create enhanced message for agent with all file content visible
+                    # CRITICAL: Must be TEXT ONLY since OpenAI doesn't support 'type: file'
                     content_to_send = parsed_content['full_content']
-                    if len(content_to_send) > 2000:
-                        content_to_send = content_to_send[:2000] + "\n\n[Content truncated for processing...]"
-                        print(f"🔍 DEBUG: Truncated large content from {len(parsed_content['full_content'])} to {len(content_to_send)} chars")
                     
+                    # DEBUG: Show what agent will receive
+                    print(f"\n{'='*60}")
+                    print(f"📋 DOCUMENT AGENT INPUT (length: {len(content_to_send)} chars)")
+                    print(f"{'='*60}")
+                    print(f"First 500 chars:\n{content_to_send[:500]}")
+                    print(f"{'='*60}\n")
+                    
+                    # Allow larger document content for proper extraction (increased from 2000 to 10000)
+                    if len(content_to_send) > 10000:
+                        content_to_send = content_to_send[:10000] + "\n\n[Content truncated - document exceeds 10k chars...]"
+                        print(f"⚠️ DEBUG: Truncated large content from {len(parsed_content['full_content'])} to {len(content_to_send)} chars")
+                    
+                    # Create TEXT-ONLY message (OpenAI doesn't support type: 'file')
+                    # Replace ALL user messages to ensure no multimodal content reaches OpenAI
+                    clean_messages = []
+                    for msg in messages[:-1]:
+                        if getattr(msg, 'type', None) == 'human':
+                            # Convert any user message to text-only
+                            msg_content = getattr(msg, 'content', '')
+                            if isinstance(msg_content, list):
+                                # Extract text from multimodal content
+                                text_parts = [item.get('text', '') for item in msg_content if isinstance(item, dict) and item.get('type') == 'text']
+                                clean_msg = HumanMessage(content=' '.join(text_parts))
+                            else:
+                                clean_msg = HumanMessage(content=str(msg_content))
+                            clean_messages.append(clean_msg)
+                        else:
+                            clean_messages.append(msg)
+                    
+                    # Add the enhanced message with full document content (already text)
                     enhanced_message = HumanMessage(content=content_to_send)
-                    enhanced_messages = messages[:-1] + [enhanced_message]
+                    clean_messages.append(enhanced_message)
                     
-                    result = agent.invoke({"messages": enhanced_messages})
+                    result = await agent.ainvoke({"messages": clean_messages})
                     return {
                         "messages": result["messages"], 
                         "current_agent": agent_name
@@ -247,7 +287,7 @@ def create_agent_node(agent_name: str, agent):
                 pass
         
         # Default execution for other agents
-        result = agent.invoke({"messages": messages})
+        result = await agent.ainvoke({"messages": messages})
         
         return {
             "messages": result["messages"], 

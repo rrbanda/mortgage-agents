@@ -34,45 +34,36 @@ from .perform_initial_qualification import perform_initial_qualification, valida
 from .track_application_status import track_application_status, validate_tool as validate_track_application_status
 from .generate_urla_1003_form import generate_urla_1003_form, validate_tool as validate_generate_urla_1003_form
 
-# Import MCP credit check tools (shared with UnderwritingAgent)
-# ApplicationAgent can fetch credit data during initial application intake
-from ...underwriting_agent.tools.get_credit_score import get_credit_score
-from ...underwriting_agent.tools.verify_identity import verify_identity
-
-
-def get_all_application_agent_tools() -> List[BaseTool]:
+def get_core_application_tools() -> List[BaseTool]:
     """
-    Returns a list of all tools available to the ApplicationAgent.
-    
-    Operational Tools (7 total):
+    Returns core application tools only (no MCP tools).
     
     Core Application Tools (5):
-    - receive_mortgage_application: Store application data in MortgageApplication nodes
-    - check_application_completeness: Check basic required fields are present
-    - perform_initial_qualification: Calculate DTI/LTV metrics (informational only)
-    - track_application_status: Retrieve application status by application_id
-    - generate_urla_1003_form: Generate URLA form from stored data
+    - receive_mortgage_application: Store application data
+    - check_application_completeness: Check required fields
+    - perform_initial_qualification: Calculate DTI/LTV metrics
+    - track_application_status: Retrieve application status
+    - generate_urla_1003_form: Generate URLA form
     
-    MCP Credit Tools (2 - for fetching missing data):
-    - get_credit_score: Fetch credit score from external MCP server when not provided
-    - verify_identity: Verify borrower identity via external MCP server
-    
-    Business Rules Tools:
-    - Application Agent does NOT have business rules tools
-    - For business rules, call shared/rules tools via BusinessRulesAgent
+    MCP tools are loaded separately via official LangGraph pattern.
     """
-    core_tools = [
+    return [
         receive_mortgage_application,
         check_application_completeness,
         perform_initial_qualification,
         track_application_status,
         generate_urla_1003_form,
-        # MCP tools for fetching missing borrower data
-        get_credit_score,
-        verify_identity
     ]
+
+
+def get_all_application_agent_tools() -> List[BaseTool]:
+    """
+    Returns all application agent tools.
     
-    return core_tools
+    For backward compatibility, returns only core tools.
+    MCP credit tools should be loaded separately via mcp_tools_loader.
+    """
+    return get_core_application_tools()
 
 
 def get_tool_descriptions() -> Dict[str, str]:
@@ -84,9 +75,7 @@ def get_tool_descriptions() -> Dict[str, str]:
         "check_application_completeness": "Check if basic required fields are present in application (no business rules enforcement)",
         "perform_initial_qualification": "Calculate financial metrics (DTI, LTV) for informational purposes only",
         "track_application_status": "Retrieve application status and details by application_id from Neo4j",
-        "generate_urla_1003_form": "Generate URLA Form 1003 from stored application data",
-        "get_credit_score": "Fetch credit score from external MCP server when not provided by borrower",
-        "verify_identity": "Verify borrower identity via external MCP server"
+        "generate_urla_1003_form": "Generate URLA Form 1003 from stored application data"
     }
 
 
@@ -119,6 +108,7 @@ __all__ = [
     "validate_generate_urla_1003_form",
     
     # Tool management functions
+    "get_core_application_tools",
     "get_all_application_agent_tools",
     "get_tool_descriptions", 
     "validate_all_tools"

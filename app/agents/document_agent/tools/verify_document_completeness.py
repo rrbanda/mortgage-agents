@@ -1,9 +1,7 @@
 """Verify Document Completeness Tool - Neo4j Powered"""
 
-import json
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional
 from langchain_core.tools import tool
 
 # MortgageInput schema removed - using flexible dict approach
@@ -20,7 +18,7 @@ def verify_document_completeness(application_data: dict) -> str:
     This tool checks document completeness against business rules from Neo4j.
     
     Args:
-        parsed_data: Pre-validated MortgageInput object with structured borrower data
+        application_data: Dictionary with structured borrower data
         
     Returns:
         String containing document completeness verification results and missing items
@@ -79,7 +77,7 @@ def verify_document_completeness(application_data: dict) -> str:
         # List uploaded documents
         if document_status:
             for doc in document_status:
-                status_icon = "" if doc['status'] == "PROCESSED" else "⏳"
+                status_icon = "✓" if doc['status'] == "PROCESSED" else "⏳"
                 report.append(f"{status_icon} {doc['document_type'].replace('_', ' ').title()}")
                 report.append(f"   Upload Date: {doc['upload_date']}")
                 report.append(f"   Status: {doc['status']}")
@@ -124,7 +122,7 @@ def validate_tool() -> bool:
             "employment_type": "w2"
         }
         result = verify_document_completeness.invoke({"application_data": test_data})
-        return "DOCUMENT COMPLETENESS VERIFICATION REPORT" in result and "DOCUMENT COLLECTION" in result
+        return "UPLOADED DOCUMENTS REPORT" in result and "📄 UPLOADED DOCUMENTS:" in result
     except Exception as e:
         print(f"Verify document completeness tool validation failed: {e}")
         return False

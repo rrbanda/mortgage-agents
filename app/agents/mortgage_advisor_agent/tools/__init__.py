@@ -11,10 +11,12 @@ The MortgageAdvisorAgent has 3 operational tools (NO business rules):
 Each tool:
 - Performs operational tasks (calculate, format, display)
 - NO hardcoded business rules or qualification thresholds
-- Directs agent to use business rules tools from shared/rules/ for actual requirements
-- Calls Neo4j directly (not via MCP) for operational data only
+- Directs agent to call Neo4j MCP tools for actual requirements/thresholds
+- Pure operational logic - no direct database calls
 
-Business rules tools (from shared/rules/) are added separately in agent.py
+Business rules MCP tools are loaded dynamically in agent.py via:
+- get_mcp_credit_tools() - Credit check via ToolHive
+- get_neo4j_mcp_tools() - Business rules via Neo4j MCP direct
 """
 
 from typing import List, Dict, Any
@@ -22,22 +24,15 @@ from langchain_core.tools import BaseTool
 
 # Import all implemented tools
 from .explain_loan_programs import explain_loan_programs, validate_tool as validate_explain_loan_programs
-from .recommend_loan_program import recommend_loan_program
+from .recommend_loan_program import recommend_loan_program, validate_tool as validate_recommend_loan_program
 from .check_qualification_requirements import check_qualification_requirements, validate_tool as validate_check_qualification_requirements
 
 # Import shared application data tools for accessing stored applications
-try:
-    from ...shared.application_data_tools import (
-        get_stored_application_data,
-        list_stored_applications,
-        find_application_by_name
-    )
-except ImportError:
-    from ...shared.application_data_tools import (
-        get_stored_application_data,
-        list_stored_applications,
-        find_application_by_name
-    )
+from ...shared.application_data_tools import (
+    get_stored_application_data,
+    list_stored_applications,
+    find_application_by_name
+)
 
 
 def get_all_mortgage_advisor_tools() -> List[BaseTool]:
@@ -50,7 +45,8 @@ def get_all_mortgage_advisor_tools() -> List[BaseTool]:
     - Provide educational information
     - NO business rules or qualification decisions
     
-    Returns 3 operational tools (business rules tools added separately in agent.py)
+    Returns 3 operational tools.
+    MCP tools (credit check & business rules) are loaded dynamically in agent.py.
     """
     return [
         explain_loan_programs,
@@ -76,7 +72,7 @@ def validate_all_tools() -> Dict[str, bool]:
     """
     results = {}
     results["explain_loan_programs"] = validate_explain_loan_programs()
-    results["recommend_loan_program"] = True  # Simplified tool doesn't have validation yet
+    results["recommend_loan_program"] = validate_recommend_loan_program()
     results["check_qualification_requirements"] = validate_check_qualification_requirements()
     return results
 
@@ -89,6 +85,7 @@ __all__ = [
     
     # Validation functions
     "validate_explain_loan_programs",
+    "validate_recommend_loan_program",
     "validate_check_qualification_requirements",
     
     # Tool management functions

@@ -68,8 +68,8 @@ def validate_urla_form(application_data: dict) -> str:
             validation_type = rule.get('validation_type', 'text')
             description = rule.get('description', 'No description')
 
-            # Get field value from parsed_data
-            field_value = getattr(parsed_data, field, None)
+            # Get field value from application_data (it's a dict, not an object)
+            field_value = application_data.get(field, None)
 
             # Perform validation based on type
             is_valid = False
@@ -81,28 +81,32 @@ def validate_urla_form(application_data: dict) -> str:
                         # SSN validation
                         if isinstance(field_value, str) and len(field_value.replace('-', '')) == 9:
                             is_valid = True
-                            validation_message = "Valid SSN format"
+                            validation_message = "✓ Valid SSN format"
                         else:
                             validation_message = "Invalid SSN format"
                     elif validation_type == "date":
                         # Date validation
                         if isinstance(field_value, str) and len(field_value) == 10 and field_value.count('-') == 2:
                             is_valid = True
-                            validation_message = "Valid date format"
+                            validation_message = "✓ Valid date format"
                         else:
                             validation_message = "Invalid date format (YYYY-MM-DD required)"
                     elif validation_type == "currency":
-                        # Currency validation
-                        if isinstance(field_value, (int, float)) and field_value > 0:
-                            is_valid = True
-                            validation_message = f"Valid amount: ${field_value:,.2f}"
-                        else:
+                        # Currency validation - convert to float safely
+                        try:
+                            amount = float(field_value) if field_value else 0.0
+                            if amount > 0:
+                                is_valid = True
+                                validation_message = f"✓ Valid amount: ${amount:,.2f}"
+                            else:
+                                validation_message = "Amount must be greater than 0"
+                        except (ValueError, TypeError):
                             validation_message = "Invalid or missing amount"
                     else:
                         # Text validation
                         if isinstance(field_value, str) and len(field_value.strip()) > 0:
                             is_valid = True
-                            validation_message = f"Valid: {field_value}"
+                            validation_message = f"✓ Valid: {field_value}"
                         else:
                             validation_message = "Missing or empty text"
                 else:
@@ -110,11 +114,11 @@ def validate_urla_form(application_data: dict) -> str:
             else:
                 # Optional field
                 is_valid = True
-                validation_message = "Optional field - not required"
+                validation_message = "✓ Optional field - not required"
 
             if is_valid:
                 passed_validations += 1
-                status_icon = ""
+                status_icon = "✓"
             else:
                 status_icon = "❌"
 
@@ -163,9 +167,9 @@ def validate_urla_form(application_data: dict) -> str:
             report.extend([
                 "🎉 OVERALL STATUS: VALIDATION PASSED",
                 "",
-                " All required fields are present and valid",
-                " URLA Form 1003 is ready for submission",
-                " No corrections needed",
+                "✓ All required fields are present and valid",
+                "✓ URLA Form 1003 is ready for submission",
+                "✓ No corrections needed",
                 "",
                 "📝 NEXT STEPS:",
                 "1. Form is ready for borrower signature",

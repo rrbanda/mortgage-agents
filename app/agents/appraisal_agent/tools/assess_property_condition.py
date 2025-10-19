@@ -28,6 +28,17 @@ def assess_property_condition(application_data: dict) -> str:
         loan_amount = application_data.get('loan_amount', 0.0)
         property_value = application_data.get('property_value', 0.0)
         
+        # Convert to float if needed (handle string inputs)
+        try:
+            loan_amount = float(loan_amount) if loan_amount else 0.0
+        except (ValueError, TypeError):
+            loan_amount = 0.0
+        
+        try:
+            property_value = float(property_value) if property_value else 0.0
+        except (ValueError, TypeError):
+            property_value = 0.0
+        
         # Generate basic report
         report = [
             'ASSESS PROPERTY CONDITION ANALYSIS REPORT',
