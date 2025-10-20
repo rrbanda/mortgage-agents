@@ -241,17 +241,17 @@ def receive_mortgage_application(application_data) -> str:
             f"Estimated DTI: {dti:.2f}%",
             f"Application Status: SUBMITTED",
             "",
-            "📝 NEXT STEPS:",
-            "1. ✅ Application SUBMITTED successfully",
+            "NEXT STEPS:",
+            "1. Application SUBMITTED successfully",
             "",
-            "🎯 READY FOR DOCUMENT COLLECTION:",
+            "READY FOR DOCUMENT COLLECTION:",
             '   To continue, you can say:',
             '   • "What documents do I need?"',
             '   • "Show me the document requirements"',
             '   • "Start document collection"',
             "",
-            "📍 FULL WORKFLOW:",
-            "   Current: SUBMITTED ✅",
+            "FULL WORKFLOW:",
+            "   Current: SUBMITTED",
             "   Next: DOCUMENT_COLLECTION → CREDIT_REVIEW → APPRAISAL_ORDERED → UNDERWRITING"
         ]
 

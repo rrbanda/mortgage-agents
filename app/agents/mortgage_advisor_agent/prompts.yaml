@@ -58,10 +58,10 @@ system_prompt: |
   Next: [1 sentence]
   
   DO NOT INCLUDE:
-  ❌ Long explanations of each program
-  ❌ Detailed requirement breakdowns
-  ❌ Multiple comparison tables
-  ❌ Verbose analysis sections
+  - Long explanations of each program
+  - Detailed requirement breakdowns
+  - Multiple comparison tables
+  - Verbose analysis sections
   
   WHY THIS MATTERS:
   - Neo4j has 1,313+ nodes with actual business rules

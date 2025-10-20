@@ -117,16 +117,16 @@ def check_application_completeness(application_data) -> str:
         ]
 
         if missing_requirements:
-            completeness_report.append("❌ MISSING REQUIRED INFORMATION:")
+            completeness_report.append("MISSING REQUIRED INFORMATION:")
             completeness_report.extend(missing_requirements)
             completeness_report.append("\nACTION: Request the customer to provide the missing information.")
             completeness_report.append("STATUS: INCOMPLETE")
         else:
-            completeness_report.append("🎉 ALL BASIC REQUIRED FIELDS ARE PRESENT!")
+            completeness_report.append("ALL BASIC REQUIRED FIELDS ARE PRESENT!")
             completeness_report.append("STATUS: COMPLETE (BASIC FIELDS)")
         
         completeness_report.append("")
-        completeness_report.append("ℹ️ NOTE:")
+        completeness_report.append("NOTE:")
         completeness_report.append("This checks basic required fields only. For loan-program-specific")
         completeness_report.append("requirements (e.g., FHA vs. Conventional), consult BusinessRulesAgent")
         completeness_report.append("using get_application_intake_rules().")

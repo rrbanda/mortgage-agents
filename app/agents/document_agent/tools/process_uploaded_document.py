@@ -110,7 +110,7 @@ def process_uploaded_document(application_data: dict) -> str:
 
         # Basic document validation
         if len(document_content) < 10:
-            validation_results.append("❌ Document content too short - may be corrupted")
+            validation_results.append("Document content too short - may be corrupted")
         else:
             validation_results.append(" Document content length acceptable")
 
@@ -164,7 +164,7 @@ def process_uploaded_document(application_data: dict) -> str:
             quality_checks.append(" Document structure validated")
             quality_checks.append(" Content readability confirmed")
         else:
-            quality_checks.append("❌ Data extraction failed")
+            quality_checks.append("Data extraction failed")
 
         # Update document status
         try:

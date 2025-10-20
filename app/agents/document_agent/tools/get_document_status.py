@@ -113,15 +113,15 @@ def get_document_status(application_data: dict) -> str:
 
             # Status icon
             if status == "PROCESSED":
-                status_icon = ""
+                status_icon = "PROCESSED"
             elif status == "PENDING_REVIEW":
-                status_icon = "⏳"
+                status_icon = "PENDING"
             elif status == "UPLOADED":
-                status_icon = "📤"
+                status_icon = "UPLOADED"
             elif status == "REJECTED":
-                status_icon = "❌"
+                status_icon = "REJECTED"
             else:
-                status_icon = "❓"
+                status_icon = "UNKNOWN"
 
             report.extend([
                 f"{status_icon} {document_type.upper()} - {status}",

@@ -57,7 +57,7 @@ def get_mcp_credit_tools() -> List[BaseTool]:
         
         if tools:
             _mcp_tools_cache = tools
-            logger.info(f"✓ Loaded {len(tools)} MCP tools: {[t.name for t in tools]}")
+            logger.info(f"Loaded {len(tools)} MCP tools: {[t.name for t in tools]}")
         else:
             logger.warning("No MCP tools loaded - server may be unavailable")
             return []
@@ -125,7 +125,7 @@ async def _initialize_mcp_client() -> Optional[MultiServerMCPClient]:
         }
         
         client = MultiServerMCPClient(client_config)
-        logger.info("✓ MCP client initialized successfully")
+        logger.info("MCP client initialized successfully")
         
         return client
         
@@ -152,9 +152,9 @@ if __name__ == "__main__":
     tools = get_mcp_credit_tools()
     
     if tools:
-        print(f"\n✓ Loaded {len(tools)} tools:")
+        print(f"\nLoaded {len(tools)} tools:")
         for tool in tools:
             print(f"  • {tool.name}: {tool.description}")
     else:
-        print("\n❌ No tools loaded")
+        print("\nNo tools loaded")
 

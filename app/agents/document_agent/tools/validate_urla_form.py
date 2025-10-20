@@ -81,14 +81,14 @@ def validate_urla_form(application_data: dict) -> str:
                         # SSN validation
                         if isinstance(field_value, str) and len(field_value.replace('-', '')) == 9:
                             is_valid = True
-                            validation_message = "✓ Valid SSN format"
+                            validation_message = "Valid SSN format"
                         else:
                             validation_message = "Invalid SSN format"
                     elif validation_type == "date":
                         # Date validation
                         if isinstance(field_value, str) and len(field_value) == 10 and field_value.count('-') == 2:
                             is_valid = True
-                            validation_message = "✓ Valid date format"
+                            validation_message = "Valid date format"
                         else:
                             validation_message = "Invalid date format (YYYY-MM-DD required)"
                     elif validation_type == "currency":
@@ -97,7 +97,7 @@ def validate_urla_form(application_data: dict) -> str:
                             amount = float(field_value) if field_value else 0.0
                             if amount > 0:
                                 is_valid = True
-                                validation_message = f"✓ Valid amount: ${amount:,.2f}"
+                                validation_message = f"Valid amount: ${amount:,.2f}"
                             else:
                                 validation_message = "Amount must be greater than 0"
                         except (ValueError, TypeError):
@@ -106,7 +106,7 @@ def validate_urla_form(application_data: dict) -> str:
                         # Text validation
                         if isinstance(field_value, str) and len(field_value.strip()) > 0:
                             is_valid = True
-                            validation_message = f"✓ Valid: {field_value}"
+                            validation_message = f"Valid: {field_value}"
                         else:
                             validation_message = "Missing or empty text"
                 else:
@@ -114,13 +114,13 @@ def validate_urla_form(application_data: dict) -> str:
             else:
                 # Optional field
                 is_valid = True
-                validation_message = "✓ Optional field - not required"
+                validation_message = "Optional field - not required"
 
             if is_valid:
                 passed_validations += 1
-                status_icon = "✓"
+                status_icon = "OK"
             else:
-                status_icon = "❌"
+                status_icon = "MISSING"
 
             validation_results.append({
                 "section": section,
@@ -165,13 +165,13 @@ def validate_urla_form(application_data: dict) -> str:
         # Add overall validation status
         if passed_validations == total_validations:
             report.extend([
-                "🎉 OVERALL STATUS: VALIDATION PASSED",
+                "OVERALL STATUS: VALIDATION PASSED",
                 "",
-                "✓ All required fields are present and valid",
-                "✓ URLA Form 1003 is ready for submission",
-                "✓ No corrections needed",
+                "All required fields are present and valid",
+                "URLA Form 1003 is ready for submission",
+                "No corrections needed",
                 "",
-                "📝 NEXT STEPS:",
+                "NEXT STEPS:",
                 "1. Form is ready for borrower signature",
                 "2. Submit to underwriting for review",
                 "3. Proceed with loan processing"
@@ -179,13 +179,13 @@ def validate_urla_form(application_data: dict) -> str:
         else:
             failed_count = total_validations - passed_validations
             report.extend([
-                f"⚠️ OVERALL STATUS: VALIDATION FAILED ({failed_count} issues found)",
+                f"OVERALL STATUS: VALIDATION FAILED ({failed_count} issues found)",
                 "",
-                "❌ Some required fields are missing or invalid",
-                "❌ URLA Form 1003 needs corrections",
-                "❌ Form cannot be submitted in current state",
+                "Some required fields are missing or invalid",
+                "URLA Form 1003 needs corrections",
+                "Form cannot be submitted in current state",
                 "",
-                "📝 CORRECTIVE ACTIONS REQUIRED:",
+                "CORRECTIVE ACTIONS REQUIRED:",
                 "1. Review failed validations above",
                 "2. Collect missing information from borrower",
                 "3. Correct invalid data entries",

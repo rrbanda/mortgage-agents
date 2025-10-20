@@ -57,7 +57,7 @@ def get_neo4j_mcp_tools() -> List[BaseTool]:
         
         if tools:
             _neo4j_mcp_tools_cache = tools
-            logger.info(f"✓ Loaded {len(tools)} Neo4j MCP tools: {[t.name for t in tools]}")
+            logger.info(f"Loaded {len(tools)} Neo4j MCP tools: {[t.name for t in tools]}")
         else:
             logger.warning("No Neo4j MCP tools loaded - server may be unavailable")
             return []
@@ -126,7 +126,7 @@ async def _initialize_neo4j_mcp_client() -> Optional[MultiServerMCPClient]:
         }
         
         client = MultiServerMCPClient(client_config)
-        logger.info("✓ Neo4j MCP client initialized successfully")
+        logger.info("Neo4j MCP client initialized successfully")
         
         return client
         
@@ -153,9 +153,9 @@ if __name__ == "__main__":
     tools = get_neo4j_mcp_tools()
     
     if tools:
-        print(f"\n✓ Loaded {len(tools)} tools:")
+        print(f"\nLoaded {len(tools)} tools:")
         for tool in tools:
             print(f"  • {tool.name}: {tool.description}")
     else:
-        print("\n❌ No tools loaded")
+        print("\nNo tools loaded")
 

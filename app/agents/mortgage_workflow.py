@@ -112,7 +112,8 @@ def create_routing_node():
             if parsed_content.get('routing_hint') == 'documents' and parsed_content.get('has_files'):
                 print(f"🔍 Pre-routing: File upload detected via routing_hint - routing to document_agent")
                 return {"route_decision": "document_agent"}
-        except:
+        except Exception:
+            # parsed_content might not be defined if earlier extraction failed
             pass
         
         # Build conversation context for context-aware routing
@@ -265,15 +266,16 @@ def create_agent_node(agent_name: str, agent):
                             if isinstance(msg_content, list):
                                 # Extract text from multimodal content
                                 text_parts = [item.get('text', '') for item in msg_content if isinstance(item, dict) and item.get('type') == 'text']
-                                clean_msg = HumanMessage(content=' '.join(text_parts))
+                                clean_msg = HumanMessage(content=' '.join(text_parts), id=getattr(msg, 'id', None))
                             else:
-                                clean_msg = HumanMessage(content=str(msg_content))
+                                clean_msg = HumanMessage(content=str(msg_content), id=getattr(msg, 'id', None))
                             clean_messages.append(clean_msg)
                         else:
                             clean_messages.append(msg)
                     
                     # Add the enhanced message with full document content (already text)
-                    enhanced_message = HumanMessage(content=content_to_send)
+                    # Preserve message ID to prevent duplication
+                    enhanced_message = HumanMessage(content=content_to_send, id=getattr(last_user_msg, 'id', None))
                     clean_messages.append(enhanced_message)
                     
                     result = await agent.ainvoke({"messages": clean_messages})
@@ -282,15 +284,18 @@ def create_agent_node(agent_name: str, agent):
                         "current_agent": agent_name
                     }
                     
-            except Exception:
-                # Fallback to original messages if enhancement fails
-                pass
+            except Exception as e:
+                # Fallback: If enhancement fails, clean messages before sending
+                # This ensures multimodal content doesn't reach OpenAI
+                print(f"⚠️ Document enhancement failed: {e}, falling back to cleaned messages")
+                messages = clean_file_entries_from_messages(messages)
         
         # Default execution for other agents
         # Clean file entries from messages for non-document agents
-        # DocumentAgent handles files specially above, other agents need text-only
+        # DocumentAgent fallback (if enhancement failed) is handled above
         if agent_name != "document_agent":
             messages = clean_file_entries_from_messages(messages)
+        # Note: If document_agent enhancement succeeded, clean_messages were already used (returned at line 283)
         
         result = await agent.ainvoke({"messages": messages})
         

@@ -55,19 +55,19 @@ system_prompt: |
   - DO NOT use your training data
   - DO NOT make up values
   
-  📋 REQUIRED OUTPUT FORMAT FOR APPRAISALS:
+  REQUIRED OUTPUT FORMAT FOR APPRAISALS:
   
   When providing appraisal analysis, use CONCISE format:
   
-  🏠 PROPERTY APPRAISAL
+  PROPERTY APPRAISAL
   
   Property: [Address]
   Appraised Value: $[Amount]
   
   Key Findings:
-  ✅ [Finding 1]
-  ✅ [Finding 2]
-  ⚠️ [Concern if any]
+  - [Finding 1]
+  - [Finding 2]
+  - [Concern if any]
   
   Comparables:
   • [Comp 1]: $[Amount]
@@ -81,10 +81,10 @@ system_prompt: |
   Next: [1 sentence]
   
   DO NOT INCLUDE:
-  ❌ Detailed methodology sections
-  ❌ Lengthy adjustment explanations
-  ❌ Multiple analysis frameworks
-  ❌ Verbose market reports
+  - Detailed methodology sections
+  - Lengthy adjustment explanations
+  - Multiple analysis frameworks
+  - Verbose market reports
   
   WHY THIS MATTERS:
   - Neo4j has 1,313+ nodes with actual business rules

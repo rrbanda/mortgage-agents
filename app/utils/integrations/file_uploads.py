@@ -52,7 +52,8 @@ def extract_text_from_data_url(data_url: str) -> Tuple[str, str, str]:
             # Try to decode as text first
             try:
                 return file_bytes.decode('utf-8'), 'text', 'uploaded.txt'
-            except:
+            except (UnicodeDecodeError, AttributeError):
+                # File is binary or cannot be decoded as UTF-8
                 return f"[Binary file of type {mime_type}, size {len(file_bytes)} bytes]", 'binary', 'uploaded.bin'
                 
     except Exception as e:
@@ -415,12 +416,13 @@ def clean_file_entries_from_messages(messages: List) -> List:
                     cleaned_content += f"Content:\n{file_info['extracted_text']}\n"
                     cleaned_content += "---\n"
                 
-                # Create new message with text-only content
-                cleaned_messages.append(HumanMessage(content=cleaned_content))
+                # Create new message with text-only content, preserving message ID
+                # Use getattr with fallback to handle messages without id attribute
+                cleaned_messages.append(HumanMessage(content=cleaned_content, id=getattr(msg, 'id', None)))
             else:
-                # No files, keep as text
+                # No files, keep as text, preserving message ID
                 text_content = ''.join([item.get('text', '') for item in msg.content if isinstance(item, dict) and item.get('type') == 'text'])
-                cleaned_messages.append(HumanMessage(content=text_content if text_content else str(msg.content)))
+                cleaned_messages.append(HumanMessage(content=text_content if text_content else str(msg.content), id=getattr(msg, 'id', None)))
         else:
             # Keep other message types as-is
             cleaned_messages.append(msg)
