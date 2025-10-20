@@ -171,9 +171,10 @@ def create_routing_node():
 - Use when: Questions about property value, appraisals, market conditions
 - Keywords: "value", "appraisal", "market", "worth", "price"
 
-**underwriting_agent**: Credit analysis, approval decisions
-- Use when: Credit-related questions, approval status, lending decisions
-- Keywords: "approved", "credit", "decision", "underwriting"
+**underwriting_agent**: Credit analysis, underwriting decisions, loan approvals
+- Use when: Credit checks, underwriting analysis, lending decisions, approval/denial requests
+- Keywords: "underwriting", "underwriting decision", "credit check", "approve loan", "deny loan", "lending decision", "make decision on", "run underwriting", "check credit score"
+- Examples: "make underwriting decision for APP_123", "run underwriting on this application", "check credit and approve"
 
 **NOTE**: Business rules questions (loan program requirements, credit requirements, DTI limits) 
 should go to application_agent or mortgage_advisor_agent as they now have access to business rules tools.
