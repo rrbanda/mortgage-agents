@@ -158,6 +158,13 @@ def create_routing_node():
 - Documents include: paystubs, W2s, bank statements, tax returns, ID, drivers license, etc.
 - Keywords: "upload", "attach", "submit documents", "process documents", "verify documents"
 
+**underwriting_agent**: Credit analysis, approval decisions, underwriting (CHECK SECOND - HIGH PRIORITY)
+- Use when: Credit-related questions, approval status, lending decisions, underwriting analysis
+- CRITICAL: If user says "underwriting decision", "make decision", "approve application", "underwriting", route here
+- CRITICAL: If user asks for credit check, credit score verification, identity verification, route here
+- Keywords: "underwriting", "underwriting decision", "make decision", "approve", "approval", "deny", "denial", "credit check", "credit score", "verify identity", "lending decision"
+- Examples: "make underwriting decision for APP_123", "run underwriting", "approve this loan", "check credit"
+
 **mortgage_advisor_agent**: General guidance, loan options, rates, eligibility
 - Use when: Customer asks questions about loan types, rates, qualification
 - Keywords: "options", "rates", "qualify", "first-time buyer", "programs"
@@ -166,25 +173,25 @@ def create_routing_node():
 - Use when: Customer wants to start/complete formal application OR is providing application data
 - Keywords: "apply", "application", "submit", "URLA", "form", names, addresses, income, employment
 - IMPORTANT: If user is answering application questions (name, DOB, address, etc.), stay with application_agent
+- NOTE: If user mentions "underwriting decision" or "approve application", route to underwriting_agent instead
 
 **appraisal_agent**: Property valuation, market analysis
 - Use when: Questions about property value, appraisals, market conditions
 - Keywords: "value", "appraisal", "market", "worth", "price"
-
-**underwriting_agent**: Credit analysis, approval decisions
-- Use when: Credit-related questions, approval status, lending decisions
-- Keywords: "approved", "credit", "decision", "underwriting"
 
 **NOTE**: Business rules questions (loan program requirements, credit requirements, DTI limits) 
 should go to application_agent or mortgage_advisor_agent as they now have access to business rules tools.
 
 **REASONING APPROACH:**
 1. **FIRST**: Check for document uploads - if ANY document upload indicators, route to document_agent
-2. **SECOND**: Check conversation context - if user is responding to an agent's question, continue with that agent  
-3. **THIRD**: Look at the main intent of the customer's request
-4. **FOURTH**: Route based on PRIMARY need and conversation flow
+2. **SECOND**: Check for underwriting requests - if user asks for "underwriting decision", "approve", "credit check", route to underwriting_agent
+3. **THIRD**: Check conversation context - if user is responding to an agent's question, continue with that agent  
+4. **FOURTH**: Look at the main intent of the customer's request
+5. **FIFTH**: Route based on PRIMARY need and conversation flow
 
-REMEMBER: Document uploads are HIGHEST PRIORITY and ALWAYS go to document_agent."""),
+REMEMBER: 
+- Document uploads are HIGHEST PRIORITY and ALWAYS go to document_agent
+- Underwriting decisions are SECOND HIGHEST PRIORITY and ALWAYS go to underwriting_agent"""),
             HumanMessage(content=f"Recent conversation:\n{conversation_context}\n\nCurrent user message: {content}")
         ]
         
