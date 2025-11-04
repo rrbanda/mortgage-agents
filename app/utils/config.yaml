@@ -73,6 +73,38 @@ mcp:
   #   url: "http://mcp-appraisal-service.example.com"
   #   enabled: false
 
+# Email notification configuration (SMTP)
+# NOTE: Use environment variables for sensitive credentials in production
+# Required environment variables:
+#   - SMTP_SERVER: SMTP server hostname (e.g., smtp.gmail.com)
+#   - SMTP_PORT: SMTP port (587 for TLS, 465 for SSL)
+#   - SMTP_USER: SMTP username/email
+#   - SMTP_PASSWORD: SMTP password (use App Password for Gmail)
+#   - SMTP_FROM_EMAIL: Sender email address (optional, defaults to SMTP_USER)
+#   - SMTP_FROM_NAME: Sender name (optional)
+email:
+  enabled: true
+  # Default SMTP settings (can be overridden by environment variables)
+  smtp:
+    server: "smtp.gmail.com"
+    port: 587
+    use_tls: true
+    # Credentials should be set via environment variables for security
+    # from_email: Set via SMTP_FROM_EMAIL or defaults to SMTP_USER
+    # from_name: Set via SMTP_FROM_NAME or defaults to "Mortgage System"
+  
+  # Email templates for different notification types
+  templates:
+    appraisal_scheduled:
+      subject: "Appraisal Scheduled - {application_id}"
+      # Template body is defined in the tool for flexibility
+    
+    application_received:
+      subject: "Application Received - {application_id}"
+    
+    document_required:
+      subject: "Documents Required - {application_id}"
+
 # Agent instructions for different processing types
 agent_instructions:
   # Instructions for CHAT conversations (general Q&A)
