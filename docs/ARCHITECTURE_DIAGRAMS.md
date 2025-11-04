@@ -22,8 +22,12 @@ graph TB
         AA[📝 ApplicationAgent<br/>5 operational + 2 business rules]
         MA[💼 MortgageAdvisorAgent<br/>3 operational + 3 business rules]
         DA[📄 DocumentAgent<br/>5 operational + 1 business rules]
-        AP[🏠 AppraisalAgent<br/>5 operational + 1 business rules]
+        AP[🏠 AppraisalAgent<br/>6 operational + 1 business rules]
         UA[🔍 UnderwritingAgent<br/>8 operational + 3 business rules]
+    end
+    
+    subgraph "External Services"
+        SMTP[📧 SMTP Email Service<br/>Gmail for Notifications]
     end
     
     subgraph "Business Rules Layer"
@@ -93,50 +97,37 @@ graph TB
 
 ---
 
-## 2️⃣ Before vs After Architecture
+## 2️⃣ External Services Integration
 
 ```mermaid
-graph LR
-    subgraph "❌ BEFORE - Centralized Business Rules Agent"
-        U1[User] --> R1[Router]
-        R1 --> A1[ApplicationAgent]
-        R1 --> M1[MortgageAdvisorAgent]
-        R1 --> D1[DocumentAgent]
-        R1 --> BR1[❌ BusinessRulesAgent<br/>Separate Agent]
-        
-        A1 -.->|Needs rules?| BR1
-        M1 -.->|Needs rules?| BR1
-        D1 -.->|Needs rules?| BR1
-        BR1 --> N1[(Neo4j)]
-        
-        style BR1 fill:#FF6B6B,stroke:#C93838,stroke-width:3px,color:#fff
+graph TB
+    subgraph "Mortgage Agent System"
+        Agents[5 Specialized Agents]
     end
     
-    subgraph " AFTER - Shared Business Rules Tools"
-        U2[User] --> R2[Router]
-        R2 --> A2[ApplicationAgent<br/>+ business rules tools]
-        R2 --> M2[MortgageAdvisorAgent<br/>+ business rules tools]
-        R2 --> D2[DocumentAgent<br/>+ business rules tools]
-        
-        A2 --> BR2[ shared/rules/<br/>Scoped Tools]
-        M2 --> BR2
-        D2 --> BR2
-        BR2 --> MCP[MCP]
-        MCP --> N2[(Neo4j)]
-        
-        style A2 fill:#50C878,stroke:#2E7D4E,stroke-width:2px,color:#fff
-        style M2 fill:#50C878,stroke:#2E7D4E,stroke-width:2px,color:#fff
-        style D2 fill:#50C878,stroke:#2E7D4E,stroke-width:2px,color:#fff
-        style BR2 fill:#4A90E2,stroke:#2E5C8A,stroke-width:2px,color:#fff
+    subgraph "External Services"
+        Email[📧 SMTP Email<br/>Gmail Notifications]
+        CreditMCP[🔌 Credit Check MCP<br/>Identity & Scores]
+        Neo4jMCP[🔌 Neo4j MCP<br/>Business Rules]
+        LLM[🤖 LlamaStack LLM<br/>Llama 4 Scout 17B]
     end
+    
+    Agents -->|Appraisal notifications| Email
+    Agents -->|Credit verification| CreditMCP
+    Agents -->|Business rules| Neo4jMCP
+    Agents -->|Reasoning & tool selection| LLM
+    
+    style Email fill:#FF6B6B,stroke:#C93838,stroke-width:2px,color:#fff
+    style CreditMCP fill:#50C878,stroke:#2E7D4E,stroke-width:2px,color:#fff
+    style Neo4jMCP fill:#9B59B6,stroke:#6C3483,stroke-width:2px,color:#fff
+    style LLM fill:#F39C12,stroke:#B8770A,stroke-width:2px,color:#fff
 ```
 
-**Benefits of New Architecture:**
-- ❌ **Eliminated:** Extra routing complexity
-- ❌ **Eliminated:** Context switching between agents
--  **Improved:** Direct access to business rules within each agent
--  **Improved:** Each agent only has rules it needs (scoped)
--  **Improved:** Faster response times (no agent-to-agent routing)
+**Integrated Services:**
+- 📧 **SMTP Email:** Gmail-based notifications for appraisal scheduling
+- 🔌 **Credit Check MCP:** Real-time credit scores and identity verification
+- 🔌 **Neo4j MCP:** Dynamic business rules without hardcoding
+- 🤖 **LlamaStack LLM:** Agent reasoning and decision making
 
 ---
 
@@ -187,14 +178,15 @@ graph TB
         end
     end
     
-    subgraph "AppraisalAgent - 6 Total Tools"
+    subgraph "AppraisalAgent - 7 Total Tools"
         direction TB
-        subgraph "Operational Tools (5)"
-            AP1[analyze_property_value]
-            AP2[find_comparable_sales]
-            AP3[assess_property_condition]
-            AP4[review_appraisal_report]
-            AP5[evaluate_market_conditions]
+        subgraph "Operational Tools (6)"
+            AP1[schedule_appraisal]
+            AP2[analyze_property_value]
+            AP3[find_comparable_sales]
+            AP4[assess_property_condition]
+            AP5[review_appraisal_report]
+            AP6[evaluate_market_conditions]
         end
         subgraph "Business Rules (1 - Scoped)"
             APR1[get_property_appraisal_rules]
@@ -238,25 +230,26 @@ graph TB
 ## 4️⃣ Tool Statistics Summary
 
 ```mermaid
-pie title Agent Tool Distribution (36 Total Tools)
+pie title Agent Tool Distribution (37 Total Tools)
     "ApplicationAgent : 7" : 7
     "MortgageAdvisorAgent : 6" : 6
     "DocumentAgent : 6" : 6
-    "AppraisalAgent : 6" : 6
+    "AppraisalAgent : 7" : 7
     "UnderwritingAgent : 11" : 11
 ```
 
 ```mermaid
 pie title Tool Type Distribution
-    "Operational Tools : 26" : 26
+    "Operational Tools : 27" : 27
     "Business Rules Tools : 10" : 10
 ```
 
 **Statistics:**
-- **5 Agents** (all refactored)
-- **36 Total Tools** across all agents
-- **26 Operational Tools** (NO hardcoded business rules)
+- **5 Agents** (all production-ready)
+- **37 Total Tools** across all agents
+- **27 Operational Tools** (NO hardcoded business rules)
 - **10 Business Rules Tools** (scoped to agent needs)
+- **NEW:** Email notification service integrated
 
 ---
 
@@ -376,7 +369,7 @@ flowchart TD
 | **ApplicationAgent** | 5 | 2 | **7** | Application intake, data collection, URLA generation |
 | **MortgageAdvisorAgent** | 3 | 3 | **6** | Customer guidance, loan recommendations, qualification advice |
 | **DocumentAgent** | 5 | 1 | **6** | Document processing, verification, status tracking |
-| **AppraisalAgent** | 5 | 1 | **6** | Property valuation, market analysis, comparable sales |
+| **AppraisalAgent** | 6 | 1 | **7** | **Appraisal scheduling, notifications**, property valuation, market analysis |
 | **UnderwritingAgent** | 8 | 3 | **11** | Credit analysis, DTI calculation, underwriting decisions |
 
 ### ApplicationAgent Tools
@@ -420,12 +413,13 @@ flowchart TD
 ---
 
 ### AppraisalAgent Tools
-**Operational (5):**
-1. `analyze_property_value` - Property valuation analysis
-2. `find_comparable_sales` - Research comparable properties
-3. `assess_property_condition` - Property condition assessment
-4. `review_appraisal_report` - Review appraisal documents
-5. `evaluate_market_conditions` - Market trend evaluation
+**Operational (6):**
+1. `schedule_appraisal` - **Schedule appraisal appointments & send email notifications** ⭐ **NEW**
+2. `analyze_property_value` - Property valuation analysis
+3. `find_comparable_sales` - Research comparable properties
+4. `assess_property_condition` - Property condition assessment
+5. `review_appraisal_report` - Review appraisal documents
+6. `evaluate_market_conditions` - Market trend evaluation
 
 **Business Rules (1):**
 1. `get_property_appraisal_rules` - LTV limits, appraisal standards
@@ -503,6 +497,7 @@ app/agents/
 │   ├── prompts.yaml
 │   └── tools/                       # 🟢 Operational tools only
 │       ├── __init__.py
+│       ├── schedule_appraisal.py          # ⭐ NEW: Scheduling + Email
 │       ├── analyze_property_value.py
 │       ├── find_comparable_sales.py
 │       ├── assess_property_condition.py
@@ -555,12 +550,14 @@ app/agents/
 
 ## 🎯 **Summary**
 
-The refactored architecture achieves:
+The current architecture achieves:
 -  **5 specialized agents** (no business_rules_agent)
--  **36 total tools** (26 operational, 10 business rules)
+-  **37 total tools** (27 operational, 10 business rules)
 -  **Clean separation** (operational vs. business rules)
 -  **Scoped business rules** (each agent has only what it needs)
 -  **Centralized rules** (shared/rules/ directory)
 -  **Direct access** (no routing to separate business rules agent)
+-  **Email notifications** (SMTP-based appraisal scheduling) ⭐ **NEW**
+-  **Real database integration** (Neo4j for appraisal orders)
 
-**Result:** A more efficient, maintainable, and scalable mortgage processing system!
+**Result:** A production-ready, efficient, and scalable mortgage processing system!
